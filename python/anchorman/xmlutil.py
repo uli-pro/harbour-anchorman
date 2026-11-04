@@ -18,31 +18,27 @@ def parse_xml(path, max_size=MAX_XML_SIZE):
         data = f.read(max_size + 1)
     if len(data) > max_size:
         raise EpubError("too_large", path)
-    _reject_dtd(data, path)
+    # expat looks up the declared encoding among Python's codecs, which fail
+    # with LookupError or ValueError (including UnicodeError) on odd names.
     try:
+        _reject_dtd(data, path)
         return ElementTree.fromstring(data)
-    except ElementTree.ParseError as e:
+    except (expat.ExpatError, ElementTree.ParseError, LookupError,
+            ValueError) as e:
         raise EpubError("bad_xml", "{}: {}".format(path, e))
 
 
 def _reject_dtd(data, path):
     # Only expat >= 2.4.1 limits entity expansion ("billion laughs"), and the
     # expat shipped with older Sailfish OS releases is unknown. No file in an
-    # EPUB 3 needs its own DTD, so refuse internal subsets and entity
-    # declarations before ElementTree ever sees them. A plain
-    # <!DOCTYPE html> stays allowed; ElementTree never loads external DTDs.
+    # EPUB 3 needs its own DTD, so refuse internal subsets, the only place
+    # entities can be declared once external DTDs are never read, before
+    # ElementTree ever sees them. A plain <!DOCTYPE html> stays allowed.
     def on_doctype(name, sysid, pubid, has_internal_subset):
         if has_internal_subset:
             raise EpubError("forbidden_dtd", path)
 
-    def on_entity(*args):
-        raise EpubError("forbidden_dtd", path)
-
     parser = expat.ParserCreate()
     parser.SetParamEntityParsing(expat.XML_PARAM_ENTITY_PARSING_NEVER)
     parser.StartDoctypeDeclHandler = on_doctype
-    parser.EntityDeclHandler = on_entity
-    try:
-        parser.Parse(data, True)
-    except expat.ExpatError as e:
-        raise EpubError("bad_xml", "{}: {}".format(path, e))
+    parser.Parse(data, True)

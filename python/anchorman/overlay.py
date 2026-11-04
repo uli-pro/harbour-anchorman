@@ -16,8 +16,11 @@ Fragment = collections.namedtuple(
     "Fragment", "text_path text_id audio_path begin end")
 Fragment.__doc__ = "One sentence; end None means: to the end of the file."
 
-_CLOCK = re.compile(r"^(?:(\d+):)?([0-5]\d):([0-5]\d(?:\.\d+)?)$")
-_TIMECOUNT = re.compile(r"^(\d+(?:\.\d+)?)(h|min|s|ms)?$")
+# Digit counts are bounded so huge numbers cannot overflow float or make
+# int() slow; nine digits of hours or seconds are far beyond any book.
+_CLOCK = re.compile(r"^(?:([0-9]{1,6}):)?([0-5][0-9]):"
+                    r"([0-5][0-9](?:\.[0-9]{1,9})?)$")
+_TIMECOUNT = re.compile(r"^([0-9]{1,9}(?:\.[0-9]{1,9})?)(h|min|s|ms)?$")
 _UNIT_MS = {"h": 3600000, "min": 60000, "s": 1000, "ms": 1, None: 1000}
 
 
@@ -114,8 +117,11 @@ class Overlay(object):
     def index_at(self, audio_path, position):
         """Index of the sentence playing at position (ms) in audio_path.
 
-        None before the first sentence (e.g. an announcement), in a gap
-        between sentences and for unknown files.
+        That is the sentence of audio_path that began last at or before
+        position, unless it has already ended: None before the first
+        sentence (e.g. an announcement), in a gap and for unknown files.
+        If clips overlap, the later one wins and an earlier, longer clip
+        is not reported once the later one has ended.
         """
         entry = self._by_audio.get(audio_path)
         if entry is None:

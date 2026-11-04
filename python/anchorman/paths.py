@@ -17,7 +17,11 @@ def resolve(referrer, href):
     Returns None for external resources (http:, data: ...) and raises
     EpubError for references that leave the book.
     """
-    parts = urlsplit(href)
+    try:
+        parts = urlsplit(href)
+    except ValueError:
+        # Malformed URLs such as "//[x" cannot be fetched from the book.
+        return None
     if parts.scheme or parts.netloc:
         return None
     path = unquote(parts.path)

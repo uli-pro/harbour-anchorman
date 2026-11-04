@@ -113,6 +113,11 @@ class PackageTest(TempDirTestCase):
             spine='<itemref idref="web"/><itemref idref="c1"/>')
         self.assertEqual([item.path for item in book.spine], ["OPS/c1.xhtml"])
 
+    def test_malformed_url_ignored(self):
+        book = self.book(
+            manifest=CHAPTER + '<item id="bad" href="//[x" media-type="text/css"/>')
+        self.assertEqual(len(book.spine), 1)
+
     def test_unknown_idref_skipped(self):
         book = self.book(spine='<itemref idref="nope"/><itemref idref="c1"/>')
         self.assertEqual(len(book.spine), 1)

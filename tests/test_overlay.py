@@ -31,7 +31,8 @@ class ParseClockTest(unittest.TestCase):
 
     def test_invalid(self):
         for text in ["", "abc", "1:2", "00:60:00", "00:00:60", "-1s", "1.s",
-                     "1e3s", "1:00:00:00", "5 s", "5sec"]:
+                     "1e3s", "1:00:00:00", "5 s", "5sec", "1" + "0" * 310 + "h",
+                     "9" * 5000 + ":00:00", "\u0661s"]:
             with self.subTest(text=text):
                 with self.assertRaises(ValueError):
                     parse_clock(text)
@@ -134,6 +135,13 @@ class OverlayTest(unittest.TestCase):
                 ("c.mp3", 0, None)]:      # unknown file
             with self.subTest(audio=audio, ms=ms):
                 self.assertEqual(self.overlay.index_at(audio, ms), index)
+
+    def test_overlap_later_clip_wins(self):
+        overlay = Overlay([Fragment("c.xhtml", "long", "a.mp3", 0, 5000),
+                           Fragment("c.xhtml", "short", "a.mp3", 1000, 2000)])
+        self.assertEqual(overlay.index_at("a.mp3", 500), 0)
+        self.assertEqual(overlay.index_at("a.mp3", 1500), 1)
+        self.assertIsNone(overlay.index_at("a.mp3", 3000))
 
     def test_first_occurrence_of_id_wins(self):
         overlay = Overlay([Fragment("c.xhtml", "s", "a.mp3", 0, 1),

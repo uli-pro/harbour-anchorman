@@ -85,6 +85,59 @@ class ExtractTest(TempDirTestCase):
         _patch_sizes(epub, "zeros", 1000)
         self.assertFails("not_zip", epub, headroom=1000000)
 
+    def test_nested_directories_count(self):
+        # Empty directories cost disk blocks although the ZIP declares 0 bytes.
+        entries = [MIMETYPE] + [
+            ("{:02}/".format(i) + "a/" * 50, b"") for i in range(20)]
+        self.assertFails("too_large", self.epub(entries), headroom=1000000)
+
+    def test_long_names(self):
+        for name in ("a" * 256, "a/" * 600 + "b"):
+            with self.subTest(length=len(name)):
+                self.assertFails("unsafe_path", self.epub([MIMETYPE, (name, b"x")]))
+
+    def test_only_stored_and_deflated(self):
+        for method in (zipfile.ZIP_BZIP2, zipfile.ZIP_LZMA):
+            with self.subTest(method=method):
+                path = os.path.join(self.tmp, "book.epub")
+                with zipfile.ZipFile(path, "w") as archive:
+                    archive.writestr(*MIMETYPE)
+                    archive.writestr("zeros", b"\0" * 1000, compress_type=method)
+                self.assertFails("not_epub", path)
+
+    def test_encrypted_entry(self):
+        epub = self.epub([MIMETYPE, ("secret", b"x")])
+        _patch_last_flags(epub, 0x1)
+        self.assertFails("not_epub", epub)
+
+    def test_bad_header_offset(self):
+        epub = self.epub([MIMETYPE, ("a.txt", b"hello")])
+        with open(epub, "r+b") as f:
+            data = bytearray(f.read())
+            central = data.index(b"PK\x01\x02", data.index(b"PK\x01\x02") + 4)
+            struct.pack_into("<I", data, central + 42, 0xFFFFFF00)
+            f.seek(0)
+            f.write(data)
+        self.assertFails("not_zip", epub)
+
+    def test_unknown_format_version(self):
+        epub = self.epub([MIMETYPE, ("a.txt", b"x")])
+        with open(epub, "r+b") as f:
+            data = bytearray(f.read())
+            struct.pack_into("<H", data, data.rindex(b"PK\x01\x02") + 6, 99)
+            f.seek(0)
+            f.write(data)
+        self.assertFails("not_zip", epub)
+
+    def test_invalid_utf8_name(self):
+        epub = self.epub([MIMETYPE, ("ab.txt", b"x")])
+        _patch_last_flags(epub, 0x800)  # names are UTF-8
+        with open(epub, "r+b") as f:
+            data = f.read().replace(b"ab.txt", b"\xff\xfe.txt")
+            f.seek(0)
+            f.write(data)
+        self.assertFails("not_zip", epub)
+
     def test_no_space(self):
         self.assertFails("no_space", self.epub(mini_entries()),
                          min_free_space=10 ** 18)
@@ -138,5 +191,17 @@ def _patch_sizes(path, name, size):
         while data[central + 46:central + 46 + len(encoded)] != encoded:
             central = data.index(b"PK\x01\x02", central + 4)
         struct.pack_into("<I", data, central + 24, size)
+        f.seek(0)
+        f.write(data)
+
+
+def _patch_last_flags(path, flags):
+    """Set flag bits of the last entry in both its ZIP headers."""
+    with open(path, "r+b") as f:
+        data = bytearray(f.read())
+        for start, offset in ((data.rindex(b"PK\x03\x04"), 6),
+                              (data.rindex(b"PK\x01\x02"), 8)):
+            value = struct.unpack_from("<H", data, start + offset)[0]
+            struct.pack_into("<H", data, start + offset, value | flags)
         f.seek(0)
         f.write(data)

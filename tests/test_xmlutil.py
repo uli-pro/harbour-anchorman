@@ -54,6 +54,8 @@ class ParseXmlTest(TempDirTestCase):
             '"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">\n<html/>'))
         self.assertEqual(root.tag, "html")
 
+    # Entities can only be declared in an internal subset, which the
+    # doctype check refuses; these two attacks are stopped there.
     def test_billion_laughs(self):
         self.assertFails("forbidden_dtd", BILLION_LAUGHS)
 
@@ -68,6 +70,12 @@ class ParseXmlTest(TempDirTestCase):
 
     def test_empty(self):
         self.assertFails("bad_xml", "")
+
+    def test_odd_encodings(self):
+        for encoding in ("foo", "zlib", "utf-7", "idna", "punycode"):
+            with self.subTest(encoding=encoding):
+                self.assertFails("bad_xml",
+                                 '<?xml version="1.0" encoding="{}"?><a/>'.format(encoding))
 
     def test_too_large(self):
         self.assertFails("too_large", "<a>" + "x" * 100 + "</a>", max_size=50)
