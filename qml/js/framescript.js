@@ -4,6 +4,13 @@
 
 var state = null
 
+// Second line of defence besides the app-wide setting, and for this view
+// only: no page scripts, no <meta http-equiv="refresh"> leaving the chapter,
+// no embedded frames. Each in its own try, should Gecko drop one of them.
+try { docShell.allowJavascript = false } catch (e) { }
+try { docShell.allowMetaRedirects = false } catch (e) { }
+try { docShell.allowSubframes = false } catch (e) { }
+
 function current() {
     return state && state.doc === content.document ? state : null
 }
@@ -12,13 +19,15 @@ addEventListener("DOMContentLoaded", function (event) {
     var doc = content.document
     if (event.target !== doc)
         return
-    // Without a viewport the page is laid out 980 px wide, like on a desktop.
-    if (!doc.querySelector("meta[name=viewport]")) {
-        var viewport = doc.createElement("meta")
+    // Without a viewport the page is laid out 980 px wide, like on a desktop;
+    // a book's own viewport would break the page width just the same.
+    var viewport = doc.querySelector("meta[name=viewport]")
+    if (!viewport) {
+        viewport = doc.createElement("meta")
         viewport.name = "viewport"
-        viewport.content = "width=device-width, initial-scale=1"
         ;(doc.head || doc.documentElement).appendChild(viewport)
     }
+    viewport.content = "width=device-width, initial-scale=1"
     // The WebView gets no touches; this only guards against links leaving
     // the chapter should that ever change.
     doc.addEventListener("click", function (e) { e.preventDefault() }, true)
@@ -27,7 +36,7 @@ addEventListener("DOMContentLoaded", function (event) {
 // Wait for "load", not DOMContentLoaded: images change the number of pages.
 addEventListener("load", function (event) {
     if (event.target === content.document)
-        sendAsyncMessage("anchorman:loaded", {})
+        sendAsyncMessage("anchorman:loaded", { url: content.document.URL })
 }, true)
 
 addMessageListener("anchorman:layout", function (message) {
@@ -67,6 +76,7 @@ addMessageListener("anchorman:layout", function (message) {
             sentences.push(el)
     }
     state = {
+        serial: o.serial,
         doc: doc,
         // The body scrolls, not the root element: Sailfish's Gecko stops
         // scrolling the root four screen widths before its end.
@@ -82,13 +92,17 @@ function important(css) {
 }
 
 // Justified text leaves wide gaps on a narrow screen. CSS cannot override
-// only "justify" and keep "center", so look at each element.
+// only "justify" and keep "center", so look at each element. All reads come
+// before all writes: mixing them would recompute the styles every time.
 function unjustify(doc) {
     var elements = doc.body ? doc.body.getElementsByTagName("*") : []
+    var justified = []
     for (var i = 0; i < elements.length; ++i) {
         if (content.getComputedStyle(elements[i]).textAlign === "justify")
-            elements[i].style.setProperty("text-align", "start", "important")
+            justified.push(elements[i])
     }
+    for (var j = 0; j < justified.length; ++j)
+        justified[j].style.setProperty("text-align", "start", "important")
 }
 
 addMessageListener("anchorman:goto", function (message) {
@@ -101,7 +115,7 @@ addMessageListener("anchorman:turn", function (message) {
         return
     var page = currentPage() + message.data.delta
     if (page < 0 || page >= pageCount()) {
-        sendAsyncMessage("anchorman:edge", { delta: message.data.delta })
+        sendAsyncMessage("anchorman:edge", { serial: state.serial, delta: message.data.delta })
         return
     }
     showPage(page)
@@ -132,6 +146,7 @@ function showPage(page) {
     // Report where the view really is, should the scroll be clamped.
     page = currentPage()
     sendAsyncMessage("anchorman:page", {
+        serial: state.serial,
         page: page,
         pages: pages,
         firstId: firstSentenceStartingOn(page),

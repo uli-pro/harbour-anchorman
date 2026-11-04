@@ -25,7 +25,7 @@ Page {
             enabled: modelData.spine >= 0
 
             Label {
-                x: Theme.horizontalPageMargin + modelData.level * Theme.paddingLarge
+                x: Theme.horizontalPageMargin + Math.min(modelData.level, 4) * Theme.paddingLarge
                 width: parent.width - x - Theme.horizontalPageMargin
                 anchors.verticalCenter: parent.verticalCenter
                 text: modelData.title

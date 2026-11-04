@@ -37,17 +37,17 @@
 <context>
     <name>ReaderPage</name>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="114"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="183"/>
         <source>Library</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="118"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="187"/>
         <source>Contents</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="250"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="286"/>
         <source>Chapter %1/%2 · Page %3/%4</source>
         <extracomment>Position in the book, e.g. &quot;Chapter 3/12 · Page 4/26&quot;</extracomment>
         <translation type="unfinished"></translation>
