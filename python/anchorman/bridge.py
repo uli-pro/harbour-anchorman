@@ -80,5 +80,17 @@ def save_position(path, key, position):
     return True
 
 
+def load_last_book(path):
+    return positions.load_last(path)
+
+
+def save_last_book(path, epub_path):
+    try:
+        positions.save_last(path, epub_path)
+    except OSError as e:
+        return _error("io", str(e))
+    return True
+
+
 def _error(code, detail):
     return {"error": code, "detail": detail}

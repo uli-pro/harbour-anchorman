@@ -102,6 +102,14 @@ class BridgeTest(TempDirTestCase):
         self.assertIs(bridge.save_position(path, "book", position), True)
         self.assertEqual(bridge.load_position(path, "book"), position)
 
+    def test_last_book(self):
+        path = os.path.join(self.tmp, "positions.json")
+        self.assertIsNone(bridge.load_last_book(path))
+        self.assertIs(bridge.save_last_book(path, self.epub), True)
+        self.assertEqual(bridge.load_last_book(path), self.epub)
+        missing = os.path.join(self.tmp, "missing", "positions.json")
+        self.assertEqual(bridge.save_last_book(missing, self.epub)["error"], "io")
+
     def test_save_position_io_error(self):
         path = os.path.join(self.tmp, "missing", "positions.json")
         result = bridge.save_position(path, "book", {"spine": 0, "id": "", "fraction": 0})

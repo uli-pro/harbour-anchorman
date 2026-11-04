@@ -6,6 +6,7 @@ import re
 import shutil
 
 from . import archive
+from .errors import EpubError
 
 # Every book takes its space twice while unpacked, so only the books the
 # reader switches between stay in the cache.
@@ -30,17 +31,26 @@ def book_key(epub_path):
 def open_book(epub_path, cache_dir, keep=KEEP):
     """Return the folder holding the unpacked EPUB, unpacking it if needed.
 
-    Before unpacking, all but the keep - 1 most recently opened books are
-    removed from cache_dir. Raises EpubError and OSError like
-    archive.extract.
+    Afterwards only the keep most recently opened books stay in cache_dir.
+    Older books are removed only once the new one is unpacked, so a broken
+    file never costs a good book, unless there is not enough space without
+    removing them first. Raises EpubError and OSError like archive.extract.
     """
     os.makedirs(cache_dir, exist_ok=True)
     root = os.path.join(cache_dir, book_key(epub_path))
-    if not os.path.isdir(root):
+    if os.path.isdir(root):
+        # The modification time of the folder records when it was last opened.
+        os.utime(root)
+        return root
+    try:
+        archive.extract(epub_path, root)
+    except EpubError as e:
+        if e.code != "no_space":
+            raise
         prune(cache_dir, keep - 1)
         archive.extract(epub_path, root)
-    # The modification time of the folder records when it was last opened.
     os.utime(root)
+    prune(cache_dir, keep)
     return root
 
 

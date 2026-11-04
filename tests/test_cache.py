@@ -1,5 +1,6 @@
 import os
 import time
+from unittest import mock
 
 from anchorman import cache
 from anchorman.errors import EpubError
@@ -83,6 +84,35 @@ class OpenBookTest(TempDirTestCase):
             cache.open_book(epub, self.cache_dir)
         self.assertEqual(cm.exception.code, "not_zip")
         self.assertEqual(self.books(), [])
+
+    def test_broken_book_keeps_cached_books(self):
+        a = cache.open_book(self.epub("a.epub"), self.cache_dir)
+        b = cache.open_book(self.epub("b.epub"), self.cache_dir)
+        epub = os.path.join(self.tmp, "broken.epub")
+        with open(epub, "wb") as f:
+            f.write(b"not a zip")
+        with self.assertRaises(EpubError):
+            cache.open_book(epub, self.cache_dir)
+        self.assertEqual(self.books(), sorted(os.path.basename(p) for p in (a, b)))
+
+    def test_makes_room_when_space_is_short(self):
+        a = cache.open_book(self.epub("a.epub"), self.cache_dir)
+        self.age(a, 300)
+        b = cache.open_book(self.epub("b.epub"), self.cache_dir)
+        real_extract = cache.archive.extract
+        calls = []
+
+        def extract(epub_path, dest_dir):
+            calls.append(sorted(os.listdir(self.cache_dir)))
+            if len(calls) == 1:
+                raise EpubError("no_space")
+            real_extract(epub_path, dest_dir)
+
+        with mock.patch.object(cache.archive, "extract", extract):
+            c = cache.open_book(self.epub("c.epub"), self.cache_dir)
+        names = [os.path.basename(p) for p in (a, b, c)]
+        self.assertEqual(calls, [sorted(names[:2]), [names[1]]])
+        self.assertEqual(self.books(), sorted(names[1:]))
 
     def test_missing_file(self):
         with self.assertRaises(OSError):
