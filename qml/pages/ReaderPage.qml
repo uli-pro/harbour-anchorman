@@ -20,6 +20,11 @@ WebViewPage {
     property int pageIndex: 0
     property int pageCount: 0
     property string firstId: ""
+    // Page numbers across the book are estimated: only the current chapter
+    // is laid out, the others are counted by their characters.
+    property real charsPerPage: 0
+    property int bookPage: 0
+    property int bookPages: 0
     property real fraction: 0
     readonly property color pageColor: Theme.colorScheme === Theme.LightOnDark ? "black" : "white"
 
@@ -95,6 +100,59 @@ WebViewPage {
         }
     }
 
+    function layout(target) {
+        flickable.webView.sendAsyncMessage("anchorman:layout", {
+            serial: serial,
+            ids: sentenceIds,
+            target: target,
+            margin: 24,
+            marginTop: 4,
+            marginBottom: 12,
+            fontSize: app.fontSize,
+            lineHeight: 1.3,
+            color: cssColor(Theme.primaryColor, 1),
+            background: cssColor(pageColor, 1)
+        })
+    }
+
+    // Same chapter and sentence, new text size.
+    function relayout() {
+        if (!ready)
+            return  // the layout still to come uses the new size
+        serial++
+        ready = false
+        covered = true
+        layout({ id: firstId, fraction: fraction })
+    }
+
+    function estimatedPages(index) {
+        var perPage = charsPerPage
+        if (perPage <= 0) {
+            // Nothing laid out yet: assume half a text size per character
+            // and 1.3 per line on the screen area.
+            perPage = ((flickable.width - 2 * Theme.horizontalPageMargin) / (0.5 * app.fontSize))
+                    * (flickable.height / (1.3 * app.fontSize))
+        }
+        return Math.max(1, Math.round(book.spine[index].chars / perPage))
+    }
+
+    function updateBookPages() {
+        var chars = book.spine[chapter].chars
+        // Short chapters (titles, pictures) say little about a full page.
+        if (chars >= 1000 && pageCount > 1)
+            charsPerPage = chars / pageCount
+        var before = 0
+        var after = 0
+        for (var i = 0; i < book.spine.length; ++i) {
+            if (i < chapter)
+                before += estimatedPages(i)
+            else if (i > chapter)
+                after += estimatedPages(i)
+        }
+        bookPage = before + pageIndex + 1
+        bookPages = before + pageCount + after
+    }
+
     function sameUrl(a, b) {
         try {
             return decodeURIComponent(a) === decodeURIComponent(b)
@@ -110,17 +168,7 @@ WebViewPage {
             if (loadingUrl === "" || !sameUrl(data.url, loadingUrl))
                 return
             loadingUrl = ""
-            flickable.webView.sendAsyncMessage("anchorman:layout", {
-                serial: serial,
-                ids: sentenceIds,
-                target: pendingTarget,
-                margin: 24,
-                marginTop: 40,
-                fontSize: 18,
-                lineHeight: 1.3,
-                color: cssColor(Theme.primaryColor, 1),
-                background: cssColor(pageColor, 1)
-            })
+            layout(pendingTarget)
             pendingTarget = null
             break
         case "anchorman:page":
@@ -133,6 +181,7 @@ WebViewPage {
             pageCount = data.pages
             firstId = data.firstId
             fraction = data.fraction
+            updateBookPages()
             savePosition()
             break
         case "anchorman:edge":
@@ -168,17 +217,81 @@ WebViewPage {
                 })
     }
 
+    Connections {
+        target: app
+        onFontSizeChanged: page.relayout()
+    }
+
+    Rectangle {
+        anchors.fill: parent
+        color: pageColor
+    }
+
+    // Chapter and page beside the notch, so the text can use the screen
+    // down to its bottom edge.
+    Item {
+        id: statusLine
+
+        readonly property bool notch: Screen.hasCutouts && Screen.topCutout.width > 0
+        readonly property real gap: Theme.paddingMedium
+
+        width: parent.width
+        height: Math.max(notch ? Screen.topCutout.y + Screen.topCutout.height : 0,
+                         Theme.fontSizeExtraSmall + 2 * Theme.paddingSmall)
+        visible: ready
+
+        Label {
+            x: Theme.paddingLarge
+            width: (statusLine.notch ? Screen.topCutout.x : parent.width / 2) - x - statusLine.gap
+            anchors.verticalCenter: parent.verticalCenter
+            // Beside a notch there is little room; shrink rather than cut.
+            fontSizeMode: Text.HorizontalFit
+            minimumPixelSize: Theme.fontSizeTiny / 2
+            font.pixelSize: Theme.fontSizeExtraSmall
+            color: Theme.secondaryColor
+            //: Chapter in the book, e.g. "Chapter 3/12"
+            text: qsTr("Chapter %1/%2").arg(chapter + 1).arg(book.spine.length)
+        }
+
+        Label {
+            readonly property real start: statusLine.notch ? Screen.topCutout.x + Screen.topCutout.width
+                                                      : parent.width / 2
+            x: start + statusLine.gap
+            width: parent.width - Theme.paddingLarge - x
+            anchors.verticalCenter: parent.verticalCenter
+            horizontalAlignment: Text.AlignRight
+            fontSizeMode: Text.HorizontalFit
+            minimumPixelSize: Theme.fontSizeTiny / 2
+            font.pixelSize: Theme.fontSizeExtraSmall
+            color: Theme.secondaryColor
+            //: Estimated page in the whole book, e.g. "Page 30/295"
+            text: qsTr("Page %1/%2").arg(bookPage).arg(bookPages)
+        }
+    }
+
     WebViewFlickable {
         id: flickable
 
         anchors {
-            top: parent.top
+            top: statusLine.bottom
             left: parent.left
             right: parent.right
-            bottom: bar.top
+            bottom: parent.bottom
         }
+        // The pulley sits above the flickable; unclipped it would cover the
+        // status line.
+        clip: true
 
         PullDownMenu {
+            // No highlight strip between the status line and the text; the
+            // chosen item is still shown by its text colour.
+            highlightColor: "transparent"
+            backgroundColor: pageColor
+
+            MenuItem {
+                text: qsTr("Text size")
+                onClicked: pageStack.push(Qt.resolvedUrl("TextSizePage.qml"))
+            }
             MenuItem {
                 text: qsTr("Library")
                 onClicked: pageStack.pop()
@@ -196,8 +309,8 @@ WebViewPage {
         }
 
         webView.active: true
-        // WebViewFlickable assumes the page fills the screen; with the bar
-        // below, 100vh would reach under it.
+        // WebViewFlickable assumes the page fills the screen; below the
+        // header, 100vh would reach past the bottom edge.
         webView.viewportHeight: flickable.height
 
         webView.onViewInitialized: {
@@ -261,30 +374,6 @@ WebViewPage {
                         turn(1)
                 }
             }
-        }
-    }
-
-    Item {
-        id: bar
-
-        anchors {
-            left: parent.left
-            right: parent.right
-            bottom: parent.bottom
-        }
-        height: Theme.itemSizeExtraSmall
-
-        Label {
-            anchors.centerIn: parent
-            width: parent.width - 2 * Theme.horizontalPageMargin
-            horizontalAlignment: Text.AlignHCenter
-            truncationMode: TruncationMode.Fade
-            font.pixelSize: Theme.fontSizeExtraSmall
-            color: Theme.secondaryColor
-            visible: ready
-            //: Position in the book, e.g. "Chapter 3/12 · Page 4/26"
-            text: qsTr("Chapter %1/%2 · Page %3/%4").arg(chapter + 1).arg(book.spine.length)
-                  .arg(pageIndex + 1).arg(pageCount)
         }
     }
 }

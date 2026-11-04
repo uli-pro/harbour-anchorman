@@ -44,7 +44,14 @@ addMessageListener("anchorman:layout", function (message) {
     var doc = content.document
     var width = content.innerWidth
     var margin = o.margin
-    var style = doc.createElement("style")
+    // Laid out again (e.g. new text size): replace our style, keep the page.
+    var style = current() ? state.style : null
+    if (!style) {
+        style = doc.createElement("style")
+        ;(doc.head || doc.documentElement).appendChild(style)
+    }
+    // QML gives the text size in screen pixels, CSS counts device-independent ones.
+    var fontSize = o.fontSize / (content.devicePixelRatio || 1)
     // Everything is !important: the book's CSS must neither break the pages
     // nor override the basic settings. Pages are CSS columns of one screen width
     // each: a column of width - 2 * margin plus a gap of 2 * margin, so every
@@ -52,10 +59,10 @@ addMessageListener("anchorman:layout", function (message) {
     style.textContent = important(
         "html { height: 100%; margin: 0; padding: 0; overflow: hidden; background: " + o.background + "; }" +
         "html body { margin: 0; height: 100vh; box-sizing: border-box; overflow: hidden;" +
-        "  padding: " + o.marginTop + "px " + margin + "px " + margin + "px;" +
+        "  padding: " + o.marginTop + "px " + margin + "px " + o.marginBottom + "px;" +
         "  column-width: " + (width - 2 * margin) + "px; column-gap: " + (2 * margin) + "px; column-fill: auto;" +
         "  color: " + o.color + "; background: " + o.background + ";" +
-        "  font-size: " + o.fontSize + "px; line-height: " + o.lineHeight + ";" +
+        "  font-size: " + fontSize + "px; line-height: " + o.lineHeight + ";" +
         "  overflow-wrap: break-word; }" +
         // Like the basic settings of FBReader: font size and line spacing
         // come from the app, relative sizes, indents and spacing of the
@@ -65,7 +72,6 @@ addMessageListener("anchorman:layout", function (message) {
         "  break-inside: avoid; }" +
         // Links cannot be followed, so they look like the text around them.
         "body a, body a:link, body a:visited { color: inherit; text-decoration: none; }")
-    ;(doc.head || doc.documentElement).appendChild(style)
     unjustify(doc)
 
     var sentences = []
@@ -78,6 +84,7 @@ addMessageListener("anchorman:layout", function (message) {
     state = {
         serial: o.serial,
         doc: doc,
+        style: style,
         // The body scrolls, not the root element: Sailfish's Gecko stops
         // scrolling the root four screen widths before its end.
         scroller: doc.body || doc.documentElement,
