@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Anchorman
+Icon=harbour-anchorman
+Exec=sailfish-qml harbour-anchorman
+X-Nemo-Application-Type=silica-qt5
+
+[X-Sailjail]
+OrganizationName=io.github.uli_pro
+ApplicationName=harbour-anchorman
+Permissions=
