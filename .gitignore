@@ -1,0 +1,16 @@
+# Local notes, not part of the project
+/CLAUDE.md
+/projektwissen/
+/uebergabe.md
+/do-not-deploy/
+
+# Build output and IDE files
+*.pro.user*
+/build*/
+/RPMS/
+Makefile
+__pycache__/
+*.pyc
+
+# Never commit copyrighted books
+*.epub
