@@ -1,0 +1,33 @@
+<?xml version='1.0' encoding='utf-8'?>
+<package xmlns="http://www.idpf.org/2007/opf" xmlns:dc="http://purl.org/dc/elements/1.1/" version="3.0" unique-identifier="id" xml:lang="en" prefix="storyteller: https://storyteller-platform.gitlab.io/storyteller/docs/vocabulary">
+  <metadata>
+    <dc:identifier id="id">urn:uuid:4f1c2a9e-6b0d-4d5e-9a57-3c8e2f7b1d60</dc:identifier>
+    <dc:identifier>urn:anchorman:test:mini</dc:identifier>
+    <dc:title id="title">The Happy Prince</dc:title>
+    <meta refines="#title" property="title-type">main</meta>
+    <dc:creator id="author">Wilde, Oscar</dc:creator>
+    <meta refines="#author" property="role" scheme="marc:relators">aut</meta>
+    <dc:creator id="narrator-1">Joy Chan</dc:creator>
+    <meta refines="#narrator-1" property="role" scheme="marc:relators">nrt</meta>
+    <dc:language>en</dc:language>
+    <dc:description>Test excerpt: the opening of a public domain text with a public domain LibriVox recording.</dc:description>
+    <meta property="dcterms:modified">2026-11-04T12:00:00Z</meta>
+    <meta property="media:duration" refines="#chapter_overlay">00:00:39.000</meta>
+    <meta property="media:duration">00:00:39.000</meta>
+    <meta property="media:active-class">-epub-media-overlay-active</meta>
+    <meta property="storyteller:version">2.14.23</meta>
+  </metadata>
+  <manifest>
+    <item id="cover" href="cover.svg" media-type="image/svg+xml" properties="cover-image"/>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="title-page" href="title.xhtml" media-type="application/xhtml+xml"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml" media-overlay="chapter_overlay"/>
+    <item id="audio_00001-00001" href="Audio/00001-00001.mp3" media-type="audio/mpeg"/>
+    <item id="chapter_overlay" href="MediaOverlays/chapter.smil" media-type="application/smil+xml"/>
+    <item id="storyteller_readaloud_styles" href="Styles/storyteller-readaloud.css" media-type="text/css"/>
+  </manifest>
+  <spine>
+    <itemref idref="title-page"/>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
