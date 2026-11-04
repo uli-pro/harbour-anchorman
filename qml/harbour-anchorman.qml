@@ -1,6 +1,7 @@
 import QtQuick 2.0
 import Sailfish.Silica 1.0
 import Sailfish.WebEngine 1.0
+import Nemo.Configuration 1.0
 import io.thp.pyotherside 1.5
 import "pages"
 
@@ -11,6 +12,16 @@ ApplicationWindow {
     readonly property string libraryFolder: StandardPaths.documents + "/Readalouds"
     readonly property string cacheFolder: StandardPaths.cache + "/books"
     readonly property string positionsFile: StandardPaths.data + "/positions.json"
+    // Text size in screen pixels, like FBReader; the frame script converts
+    // it to CSS pixels.
+    readonly property int minFontSize: 20
+    readonly property int maxFontSize: 100
+    readonly property int fontSize: Math.max(minFontSize, Math.min(maxFontSize,
+                                             Number(fontSizeSetting.value) || 36))
+
+    function setFontSize(size) {
+        fontSizeSetting.value = size
+    }
 
     function errorText(code) {
         switch (code) {
@@ -43,6 +54,12 @@ ApplicationWindow {
         // Only our frame script may run code in the book's pages; scripts
         // that came with a book never run.
         WebEngineSettings.javascriptEnabled = false
+    }
+
+    ConfigurationValue {
+        id: fontSizeSetting
+        key: "/apps/harbour-anchorman/fontSize"
+        defaultValue: 36
     }
 
     Python {

@@ -84,6 +84,12 @@ class BridgeTest(TempDirTestCase):
         result = bridge.open_book(os.path.join(self.tmp, "missing.epub"), self.cache_dir)
         self.assertEqual(result["error"], "io")
 
+    def test_chapter_lengths(self):
+        root = bridge.open_book(self.epub, self.cache_dir)["root"]
+        paths = ["OEBPS/title.xhtml", "OEBPS/chapter.xhtml", "OEBPS/title.xhtml",
+                 "OEBPS/missing.xhtml"]
+        self.assertEqual(bridge.chapter_lengths(root, paths), [31, 233, 31, 0])
+
     def test_read_chapter(self):
         book = bridge.open_book(self.epub, self.cache_dir)
         chapter = book["spine"][1]

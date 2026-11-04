@@ -113,6 +113,20 @@ def read_nav(root, nav_path):
     return entries
 
 
+def text_length(root, path):
+    """Number of characters of text in the XHTML file path.
+
+    Only used to estimate page numbers across the book, so an unreadable
+    file counts as 0 instead of raising.
+    """
+    try:
+        doc = parse_xml(local_path(root, path))
+    except (EpubError, OSError):
+        return 0
+    body = doc.find(_XHTML + "body")
+    return len(_text(body if body is not None else doc))
+
+
 def _read_manifest(opf, opf_path):
     manifest = {}
     for item in opf.iterfind(_OPF + "manifest/" + _OPF + "item"):

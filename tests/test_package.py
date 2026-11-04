@@ -1,7 +1,7 @@
 import os
 
 from anchorman.errors import EpubError
-from anchorman.package import SpineItem, TocEntry, read_nav, read_package
+from anchorman.package import SpineItem, TocEntry, read_nav, read_package, text_length
 
 from .helpers import MINI_DIR, TempDirTestCase, write_files
 
@@ -211,3 +211,31 @@ class NavTest(TempDirTestCase):
         entries = read_nav(self.tmp, "nav.xhtml")
         self.assertEqual(len(entries), depth)
         self.assertEqual(entries[-1].level, depth - 1)
+
+
+class TextLengthTest(TempDirTestCase):
+
+    def test_counts_body_text_with_collapsed_whitespace(self):
+        write_files(self.tmp, {"c.xhtml": (
+            '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Not counted</title></head>'
+            '<body><p>Two  words</p>\n<p><span>and</span> more</p></body></html>')})
+        self.assertEqual(text_length(self.tmp, "c.xhtml"), len("Two words and more"))
+
+    def test_unreadable_files_count_zero(self):
+        write_files(self.tmp, {"bad.xhtml": "<html"})
+        self.assertEqual(text_length(self.tmp, "bad.xhtml"), 0)
+        self.assertEqual(text_length(self.tmp, "missing.xhtml"), 0)
+
+    def test_without_xhtml_body_counts_whole_document(self):
+        write_files(self.tmp, {"c.svg": '<svg xmlns="http://www.w3.org/2000/svg"><text>Hi there</text></svg>'})
+        self.assertEqual(text_length(self.tmp, "c.svg"), len("Hi there"))
+
+    def test_forbidden_or_oversized_count_zero(self):
+        write_files(self.tmp, {
+            "dtd.xhtml": '<!DOCTYPE html [<!ENTITY a "x">]><html xmlns="http://www.w3.org/1999/xhtml"><body>&a;</body></html>',
+            "big.xhtml": '<html xmlns="http://www.w3.org/1999/xhtml"><body>' + "x" * (10 * 1024 * 1024) + '</body></html>'})
+        self.assertEqual(text_length(self.tmp, "dtd.xhtml"), 0)
+        self.assertEqual(text_length(self.tmp, "big.xhtml"), 0)
+
+    def test_mini_chapter(self):
+        self.assertGreater(text_length(MINI_DIR, "OEBPS/chapter.xhtml"), 100)

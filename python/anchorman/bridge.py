@@ -12,7 +12,7 @@ import os
 from . import cache, library, positions
 from .errors import EpubError
 from .overlay import read_overlay
-from .package import read_package
+from .package import read_package, text_length
 
 _MAX_KEY_LENGTH = 200
 
@@ -47,6 +47,19 @@ def open_book(epub_path, cache_dir):
                  "spine": spine_index.get(entry.path, -1)}
                 for entry in book.toc],
     }
+
+
+def chapter_lengths(root, paths):
+    """Characters of text in each chapter, for estimating page numbers.
+
+    A separate call, so that parsing every chapter does not delay opening
+    the book.
+    """
+    lengths = {}
+    for path in paths:
+        if path not in lengths:
+            lengths[path] = text_length(root, path)
+    return [lengths[path] for path in paths]
 
 
 def read_chapter(root, chapter_path, smil_path):
