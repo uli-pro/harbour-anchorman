@@ -63,7 +63,12 @@ def chapter_lengths(root, paths):
 
 
 def read_chapter(root, chapter_path, smil_path):
-    """The sentence ids of the chapter chapter_path, in reading order."""
+    """The sentences of the chapter chapter_path, in reading order.
+
+    "ids" lists each sentence element once, for the page; "sentences" lists
+    what is played: element id, audio file (path in the book), begin and
+    end in ms, end None meaning to the end of the file.
+    """
     try:
         overlay = read_overlay(root, smil_path)
     except EpubError as e:
@@ -72,13 +77,18 @@ def read_chapter(root, chapter_path, smil_path):
         return _error("io", str(e))
     ids = []
     seen = set()
+    sentences = []
     for fragment in overlay.fragments:
         # A SMIL file may point into other chapters; those ids could collide
         # with ids of this page.
-        if fragment.text_path == chapter_path and fragment.text_id not in seen:
+        if fragment.text_path != chapter_path:
+            continue
+        sentences.append({"id": fragment.text_id, "audio": fragment.audio_path,
+                          "begin": fragment.begin, "end": fragment.end})
+        if fragment.text_id not in seen:
             seen.add(fragment.text_id)
             ids.append(fragment.text_id)
-    return {"ids": ids, "skipped": overlay.skipped}
+    return {"ids": ids, "sentences": sentences, "skipped": overlay.skipped}
 
 
 def load_position(path, key):

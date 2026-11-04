@@ -14,6 +14,11 @@ SMIL = """<?xml version="1.0"?>
   <par><text src="a.xhtml#s4"/><audio src="a.mp3" clipBegin="5s" clipEnd="4s"/></par>
 </body></smil>"""
 
+SMIL_NO_END = """<?xml version="1.0"?>
+<smil xmlns="http://www.w3.org/ns/SMIL" version="3.0"><body>
+  <par><text src="a.xhtml#s1"/><audio src="../Audio/a.mp3" clipBegin="1.5s"/></par>
+</body></smil>"""
+
 
 class BridgeTest(TempDirTestCase):
 
@@ -95,13 +100,33 @@ class BridgeTest(TempDirTestCase):
         chapter = book["spine"][1]
         self.assertEqual(
             bridge.read_chapter(book["root"], chapter["path"], chapter["overlay"]),
-            {"ids": ["chapter-s0", "chapter-s1", "chapter-s2"], "skipped": 0})
+            {"ids": ["chapter-s0", "chapter-s1", "chapter-s2"],
+             "sentences": [
+                 {"id": "chapter-s0", "audio": "OEBPS/Audio/00001-00001.mp3",
+                  "begin": 0, "end": 17780},
+                 {"id": "chapter-s1", "audio": "OEBPS/Audio/00001-00001.mp3",
+                  "begin": 17780, "end": 29660},
+                 {"id": "chapter-s2", "audio": "OEBPS/Audio/00001-00001.mp3",
+                  "begin": 29660, "end": 39000}],
+             "skipped": 0})
 
     def test_read_chapter_keeps_ids_of_this_chapter_once(self):
         write_files(self.tmp, {"book/a.smil": SMIL})
         root = os.path.join(self.tmp, "book")
-        self.assertEqual(bridge.read_chapter(root, "a.xhtml", "a.smil"),
-                         {"ids": ["s1", "s3"], "skipped": 1})
+        result = bridge.read_chapter(root, "a.xhtml", "a.smil")
+        self.assertEqual(result["ids"], ["s1", "s3"])
+        self.assertEqual(result["skipped"], 1)
+        # Every clip is played, also one whose element came before.
+        self.assertEqual([(s["id"], s["begin"]) for s in result["sentences"]],
+                         [("s1", 0), ("s3", 2000), ("s1", 3000)])
+
+    def test_read_chapter_sentence_without_end(self):
+        write_files(self.tmp, {"book/Text/a.smil": SMIL_NO_END})
+        root = os.path.join(self.tmp, "book")
+        result = bridge.read_chapter(root, "Text/a.xhtml", "Text/a.smil")
+        json.dumps(result)
+        self.assertEqual(result["sentences"], [
+            {"id": "s1", "audio": "Audio/a.mp3", "begin": 1500, "end": None}])
 
     def test_read_chapter_errors(self):
         write_files(self.tmp, {"book/bad.smil": "<smil"})
