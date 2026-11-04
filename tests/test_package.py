@@ -1,0 +1,213 @@
+import os
+
+from anchorman.errors import EpubError
+from anchorman.package import SpineItem, TocEntry, read_nav, read_package
+
+from .helpers import MINI_DIR, TempDirTestCase, write_files
+
+CONTAINER = """<?xml version="1.0"?>
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>"""
+
+OPF = """<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf" xmlns:dc="http://purl.org/dc/elements/1.1/"
+         xmlns:opf="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="uid">
+  <metadata>{metadata}</metadata>
+  <manifest>{manifest}</manifest>
+  <spine>{spine}</spine>
+</package>"""
+
+CHAPTER = '<item id="c1" href="c1.xhtml" media-type="application/xhtml+xml"/>'
+
+
+class MiniBookTest(TempDirTestCase):
+
+    def test_metadata(self):
+        book = read_package(MINI_DIR)
+        self.assertEqual(book.identifier,
+                         "urn:uuid:4f1c2a9e-6b0d-4d5e-9a57-3c8e2f7b1d60")
+        self.assertEqual(book.title, "The Happy Prince")
+        self.assertEqual(book.authors, ["Wilde, Oscar"])
+        self.assertEqual(book.language, "en")
+        self.assertEqual(book.cover, "OEBPS/cover.svg")
+        self.assertEqual(book.duration, 39000)
+        self.assertEqual(book.active_class, "-epub-media-overlay-active")
+
+    def test_spine(self):
+        self.assertEqual(read_package(MINI_DIR).spine, [
+            SpineItem("OEBPS/title.xhtml", "application/xhtml+xml", None, True),
+            SpineItem("OEBPS/chapter.xhtml", "application/xhtml+xml",
+                      "OEBPS/MediaOverlays/chapter.smil", True),
+        ])
+
+    def test_toc(self):
+        self.assertEqual(read_package(MINI_DIR).toc, [
+            TocEntry("Title Page", "OEBPS/title.xhtml", "", 0),
+            TocEntry("The Happy Prince.", "OEBPS/chapter.xhtml", "chap01", 0),
+        ])
+
+
+class PackageTest(TempDirTestCase):
+
+    def book(self, metadata="", manifest=CHAPTER, spine='<itemref idref="c1"/>',
+             files=None):
+        content = {
+            "META-INF/container.xml": CONTAINER,
+            "OPS/package.opf": OPF.format(metadata=metadata, manifest=manifest,
+                                          spine=spine),
+        }
+        content.update(files or {})
+        write_files(self.tmp, content)
+        return read_package(self.tmp)
+
+    def assertFails(self, code, **kwargs):
+        with self.assertRaises(EpubError) as cm:
+            self.book(**kwargs)
+        self.assertEqual(cm.exception.code, code)
+
+    def test_minimal(self):
+        book = self.book()
+        self.assertEqual(book.title, "")
+        self.assertEqual(book.authors, [])
+        self.assertIsNone(book.cover)
+        self.assertIsNone(book.duration)
+        self.assertEqual(book.active_class, "-epub-media-overlay-active")
+        self.assertEqual(book.toc, [])
+        self.assertEqual(book.spine, [
+            SpineItem("OPS/c1.xhtml", "application/xhtml+xml", None, True)])
+
+    def test_missing_container(self):
+        with self.assertRaises(EpubError) as cm:
+            read_package(self.tmp)
+        self.assertEqual(cm.exception.code, "not_epub")
+
+    def test_container_without_rootfile(self):
+        write_files(self.tmp, {"META-INF/container.xml": "<container/>"})
+        with self.assertRaises(EpubError) as cm:
+            read_package(self.tmp)
+        self.assertEqual(cm.exception.code, "not_epub")
+
+    def test_missing_package(self):
+        write_files(self.tmp, {"META-INF/container.xml": CONTAINER})
+        with self.assertRaises(EpubError) as cm:
+            read_package(self.tmp)
+        self.assertEqual(cm.exception.code, "bad_package")
+
+    def test_href_leaving_book(self):
+        self.assertFails("unsafe_path", manifest=(
+            '<item id="c1" href="../../etc/passwd" media-type="text/plain"/>'))
+
+    def test_percent_encoding(self):
+        book = self.book(manifest=(
+            '<item id="c1" href="Text/chapter%201.xhtml" '
+            'media-type="application/xhtml+xml"/>'))
+        self.assertEqual(book.spine[0].path, "OPS/Text/chapter 1.xhtml")
+
+    def test_external_item_ignored(self):
+        book = self.book(
+            manifest=CHAPTER + '<item id="web" href="https://example.com/x.xhtml" '
+                               'media-type="application/xhtml+xml"/>',
+            spine='<itemref idref="web"/><itemref idref="c1"/>')
+        self.assertEqual([item.path for item in book.spine], ["OPS/c1.xhtml"])
+
+    def test_malformed_url_ignored(self):
+        book = self.book(
+            manifest=CHAPTER + '<item id="bad" href="//[x" media-type="text/css"/>')
+        self.assertEqual(len(book.spine), 1)
+
+    def test_unknown_idref_skipped(self):
+        book = self.book(spine='<itemref idref="nope"/><itemref idref="c1"/>')
+        self.assertEqual(len(book.spine), 1)
+
+    def test_empty_spine(self):
+        self.assertFails("bad_package", spine="")
+
+    def test_linear_and_overlay(self):
+        book = self.book(
+            manifest=(
+                '<item id="c1" href="c1.xhtml" media-type="application/xhtml+xml" '
+                'media-overlay="s1"/>'
+                '<item id="c2" href="c2.xhtml" media-type="application/xhtml+xml" '
+                'media-overlay="css"/>'
+                '<item id="s1" href="mo/c1.smil" media-type="application/smil+xml"/>'
+                '<item id="css" href="style.css" media-type="text/css"/>'),
+            spine='<itemref idref="c1"/><itemref idref="c2" linear="no"/>')
+        self.assertEqual(book.spine[0].overlay, "OPS/mo/c1.smil")
+        self.assertTrue(book.spine[0].linear)
+        self.assertIsNone(book.spine[1].overlay)
+        self.assertFalse(book.spine[1].linear)
+
+    def test_identifier(self):
+        book = self.book(metadata=(
+            '<dc:identifier>first</dc:identifier>'
+            '<dc:identifier id="uid">unique</dc:identifier>'))
+        self.assertEqual(book.identifier, "unique")
+
+    def test_epub2_metadata(self):
+        book = self.book(
+            metadata=(
+                '<dc:creator opf:role="aut">Ann Author</dc:creator>'
+                '<dc:creator opf:role="nrt">Ned Narrator</dc:creator>'
+                '<dc:creator>Una Unknown</dc:creator>'
+                '<meta name="cover" content="img"/>'),
+            manifest=CHAPTER + '<item id="img" href="cover.jpg" media-type="image/jpeg"/>')
+        self.assertEqual(book.authors, ["Ann Author", "Una Unknown"])
+        self.assertEqual(book.cover, "OPS/cover.jpg")
+
+    def test_bad_duration_ignored(self):
+        book = self.book(metadata='<meta property="media:duration">soon</meta>')
+        self.assertIsNone(book.duration)
+
+    def test_broken_nav_gives_empty_toc(self):
+        book = self.book(
+            manifest=CHAPTER + '<item id="nav" href="nav.xhtml" '
+                               'media-type="application/xhtml+xml" properties="nav"/>',
+            files={"OPS/nav.xhtml": "<html><nav>"})
+        self.assertEqual(book.toc, [])
+
+
+NAV = """<?xml version="1.0"?>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+<body>
+  <nav epub:type="landmarks"><ol><li><a href="x.xhtml">Landmark</a></li></ol></nav>
+  <nav epub:type="toc">
+    <ol>
+      <li><span>Part   One</span>
+        <ol>
+          <li><a href="Text/c1.xhtml#start">Chapter <b>1</b></a></li>
+          <li><a href="Text/c2.xhtml">Chapter 2</a>
+            <ol><li><a href="#note">Note</a></li></ol>
+          </li>
+        </ol>
+      </li>
+      <li><a href="Text/end.xhtml">The End</a></li>
+    </ol>
+  </nav>
+</body>
+</html>"""
+
+
+class NavTest(TempDirTestCase):
+
+    def test_nested(self):
+        write_files(self.tmp, {"OPS/nav.xhtml": NAV})
+        self.assertEqual(read_nav(self.tmp, "OPS/nav.xhtml"), [
+            TocEntry("Part One", None, "", 0),
+            TocEntry("Chapter 1", "OPS/Text/c1.xhtml", "start", 1),
+            TocEntry("Chapter 2", "OPS/Text/c2.xhtml", "", 1),
+            TocEntry("Note", "OPS/nav.xhtml", "note", 2),
+            TocEntry("The End", "OPS/Text/end.xhtml", "", 0),
+        ])
+
+    def test_deep_nesting(self):
+        depth = 5000
+        body = "<ol><li><a href='a.xhtml'>x</a>" * depth + "</li></ol>" * depth
+        write_files(self.tmp, {"nav.xhtml": (
+            '<html xmlns="http://www.w3.org/1999/xhtml"><body><nav>'
+            + body + "</nav></body></html>")})
+        entries = read_nav(self.tmp, "nav.xhtml")
+        self.assertEqual(len(entries), depth)
+        self.assertEqual(entries[-1].level, depth - 1)

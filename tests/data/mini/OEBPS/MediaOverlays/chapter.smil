@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<smil xmlns="http://www.w3.org/ns/SMIL" xmlns:epub="http://www.idpf.org/2007/ops" version="3.0">
+  <body>
+    <seq id="chapter_overlay" epub:textref="../chapter.xhtml" epub:type="chapter">
+      <par id="chapter-s0">
+        <text src="../chapter.xhtml#chapter-s0"/>
+        <audio src="../Audio/00001-00001.mp3" clipBegin="0.000s" clipEnd="17.780s"/>
+      </par>
+      <par id="chapter-s1">
+        <text src="../chapter.xhtml#chapter-s1"/>
+        <audio src="../Audio/00001-00001.mp3" clipBegin="17.780s" clipEnd="29.660s"/>
+      </par>
+      <par id="chapter-s2">
+        <text src="../chapter.xhtml#chapter-s2"/>
+        <audio src="../Audio/00001-00001.mp3" clipBegin="29.660s" clipEnd="39.000s"/>
+      </par>
+    </seq>
+  </body>
+</smil>

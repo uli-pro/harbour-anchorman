@@ -19,6 +19,27 @@ sfdk config target=SailfishOS-5.1.0.11-aarch64
 sfdk build /path/to/harbour-anchorman
 ```
 
+## Running tests
+
+The Python modules in `python/anchorman/` (except `bridge.py`) use only the
+standard library and are tested without the SDK. They must work with
+Python 3.8 (Sailfish OS up to 5.0) and 3.11 (from 5.1).
+
+```
+cd /path/to/harbour-anchorman
+PYTHONPATH=python python3 -B -m unittest discover -s tests -t .
+```
+
+With containers, for the Python versions found on devices:
+
+```
+for v in 3.8 3.11; do
+  podman run --rm --security-opt label=disable -v "$PWD":/src:ro -w /src \
+    -e PYTHONPATH=python docker.io/library/python:$v-slim \
+    python -B -m unittest discover -s tests -t .
+done
+```
+
 ## AI assistance
 
 This app is written with the help of an AI assistant (Claude by Anthropic).
