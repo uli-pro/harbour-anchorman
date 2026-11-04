@@ -37,10 +37,10 @@ class BridgeTest(TempDirTestCase):
         self.assertEqual(book["language"], "en")
         self.assertEqual(book["duration"], 39000)
         self.assertEqual(book["activeClass"], "-epub-media-overlay-active")
-        self.assertEqual(book["spine"], [
-            {"path": "OEBPS/title.xhtml", "overlay": None, "linear": True},
-            {"path": "OEBPS/chapter.xhtml",
-             "overlay": "OEBPS/MediaOverlays/chapter.smil", "linear": True}])
+        self.assertEqual([(i["path"], i["overlay"], i["linear"]) for i in book["spine"]], [
+            ("OEBPS/title.xhtml", None, True),
+            ("OEBPS/chapter.xhtml", "OEBPS/MediaOverlays/chapter.smil", True)])
+        self.assertTrue(all(i["chars"] > 0 for i in book["spine"]))
         self.assertEqual(book["toc"], [
             {"title": "Title Page", "path": "OEBPS/title.xhtml", "fragment": "",
              "level": 0, "spine": 0},

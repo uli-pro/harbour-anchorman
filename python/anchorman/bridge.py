@@ -12,7 +12,7 @@ import os
 from . import cache, library, positions
 from .errors import EpubError
 from .overlay import read_overlay
-from .package import read_package
+from .package import read_package, text_length
 
 _MAX_KEY_LENGTH = 200
 
@@ -40,8 +40,10 @@ def open_book(epub_path, cache_dir):
         "language": book.language,
         "duration": book.duration,
         "activeClass": book.active_class,
+        # chars lets QML estimate page numbers across the book.
         "spine": [{"path": item.path, "overlay": item.overlay,
-                   "linear": item.linear} for item in book.spine],
+                   "linear": item.linear, "chars": text_length(root, item.path)}
+                  for item in book.spine],
         "toc": [{"title": entry.title, "path": entry.path,
                  "fragment": entry.fragment, "level": entry.level,
                  "spine": spine_index.get(entry.path, -1)}
