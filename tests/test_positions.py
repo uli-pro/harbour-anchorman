@@ -5,7 +5,7 @@ from anchorman import positions
 
 from .helpers import TempDirTestCase
 
-POSITION = {"spine": 3, "id": "item19-s5", "fraction": 0.25}
+POSITION = {"spine": 3, "id": "item19-s5", "fraction": 0.25, "heard": False}
 
 
 class PositionsTest(TempDirTestCase):
@@ -28,7 +28,7 @@ class PositionsTest(TempDirTestCase):
         positions.save(self.path, "b", other)
         self.assertEqual(positions.load(self.path, "a"), POSITION)
         self.assertEqual(positions.load(self.path, "b"),
-                         {"spine": 0, "id": "", "fraction": 1.0})
+                         {"spine": 0, "id": "", "fraction": 1.0, "heard": False})
 
     def test_overwrite(self):
         positions.save(self.path, "book", POSITION)
@@ -42,6 +42,13 @@ class PositionsTest(TempDirTestCase):
     def test_extra_fields_dropped(self):
         positions.save(self.path, "book", dict(POSITION, extra="x"))
         self.assertEqual(positions.load(self.path, "book"), POSITION)
+
+    def test_heard(self):
+        positions.save(self.path, "book", dict(POSITION, heard=True))
+        self.assertIs(positions.load(self.path, "book")["heard"], True)
+        # Only true itself counts.
+        positions.save(self.path, "book", dict(POSITION, heard="yes"))
+        self.assertIs(positions.load(self.path, "book")["heard"], False)
 
     def test_unknown_book_or_missing_file(self):
         self.assertIsNone(positions.load(self.path, "book"))

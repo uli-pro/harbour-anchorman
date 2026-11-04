@@ -139,7 +139,7 @@ class BridgeTest(TempDirTestCase):
     def test_positions(self):
         path = os.path.join(self.tmp, "positions.json")
         self.assertIsNone(bridge.load_position(path, "book"))
-        position = {"spine": 1, "id": "chapter-s1", "fraction": 0.5}
+        position = {"spine": 1, "id": "chapter-s1", "fraction": 0.5, "heard": True}
         self.assertIs(bridge.save_position(path, "book", position), True)
         self.assertEqual(bridge.load_position(path, "book"), position)
 
