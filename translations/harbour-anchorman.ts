@@ -37,48 +37,75 @@
 <context>
     <name>ReaderPage</name>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="287"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="446"/>
+        <source>The narration could not be played.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ReaderPage.qml" line="481"/>
         <source>Chapter %1/%2</source>
         <extracomment>Chapter in the book, e.g. &quot;Chapter 3/12&quot;</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="303"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="497"/>
         <source>Page %1/%2</source>
         <extracomment>Estimated page in the whole book, e.g. &quot;Page 30/295&quot;</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="327"/>
-        <source>Text size</source>
+        <location filename="../qml/pages/ReaderPage.qml" line="521"/>
+        <source>Settings</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="331"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="549"/>
+        <source>Play</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ReaderPage.qml" line="650"/>
+        <source>%1×</source>
+        <extracomment>Playback speed on the button that opens the settings, e.g. &quot;1.25×&quot;</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ReaderPage.qml" line="525"/>
         <source>Library</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="335"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="532"/>
         <source>Contents</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
-    <name>TextSizePage</name>
+    <name>SettingsPage</name>
     <message>
-        <location filename="../qml/pages/TextSizePage.qml" line="20"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="23"/>
+        <source>Settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="34"/>
+        <source>%1×</source>
+        <extracomment>Playback speed, e.g. &quot;1.25×&quot;</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="35"/>
+        <source>Speed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="47"/>
         <source>Text size</source>
+        <extracomment>Text size in pixels on the screen</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/TextSizePage.qml" line="32"/>
-        <source>Pixels</source>
-        <extracomment>Unit of the text size slider: pixels on the screen</extracomment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../qml/pages/TextSizePage.qml" line="41"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="56"/>
         <source>High above the city, on a tall column, stood the statue of the Happy Prince.</source>
         <extracomment>Sample text showing the chosen text size</extracomment>
         <translation type="unfinished"></translation>
@@ -100,37 +127,37 @@
 <context>
     <name>harbour-anchorman</name>
     <message>
-        <location filename="../qml/harbour-anchorman.qml" line="30"/>
+        <location filename="../qml/harbour-anchorman.qml" line="42"/>
         <source>This file is not an EPUB book.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-anchorman.qml" line="33"/>
+        <location filename="../qml/harbour-anchorman.qml" line="45"/>
         <source>This book is too large or damaged.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-anchorman.qml" line="35"/>
+        <location filename="../qml/harbour-anchorman.qml" line="47"/>
         <source>Not enough free space to open this book.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-anchorman.qml" line="37"/>
+        <location filename="../qml/harbour-anchorman.qml" line="49"/>
         <source>This book contains unsafe file names and was not opened.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-anchorman.qml" line="39"/>
+        <location filename="../qml/harbour-anchorman.qml" line="51"/>
         <source>The book could not be read.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-anchorman.qml" line="41"/>
+        <location filename="../qml/harbour-anchorman.qml" line="53"/>
         <source>This book is damaged.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-anchorman.qml" line="77"/>
+        <location filename="../qml/harbour-anchorman.qml" line="95"/>
         <source>Internal error. Please report it with the log.</source>
         <translation type="unfinished"></translation>
     </message>

@@ -79,16 +79,23 @@ addMessageListener("anchorman:layout", function (message) {
         "body img, body svg { display: block; margin: 0 auto; max-width: 100%; max-height: 70vh;" +
         "  break-inside: avoid; }" +
         // Links cannot be followed, so they look like the text around them.
-        "body a, body a:link, body a:visited { color: inherit; text-decoration: none; }")
+        "body a, body a:link, body a:visited { color: inherit; text-decoration: none; }" +
+        // Our own mark for the sentence spoken: the book's style for its
+        // active class is made for white pages.
+        "body .anchorman-active { background-color: " + o.activeColor + "; }")
     unjustify(doc)
 
     var sentences = []
+    var isSentence = {}
     for (var i = 0; i < o.ids.length; ++i) {
         // Python does not check that the ids exist in the page.
         var el = doc.getElementById(o.ids[i])
-        if (el)
+        if (el) {
             sentences.push(el)
+            isSentence[o.ids[i]] = true
+        }
     }
+    var active = current() ? state.active : null
     state = {
         serial: o.serial,
         doc: doc,
@@ -97,10 +104,89 @@ addMessageListener("anchorman:layout", function (message) {
         // scrolling the root four screen widths before its end.
         scroller: doc.body || doc.documentElement,
         width: width,
-        sentences: sentences
+        sentences: sentences,
+        isSentence: isSentence,
+        active: active
     }
     go(target)
+    if (o.highlight)
+        highlight(o.highlight)
     awaitPaint(o.serial)
+})
+
+// The sentence spoken: marked, its page shown. A sentence running onto
+// further pages reports them with the share of its text before each, so
+// QML can turn the page while the sentence is spoken.
+function highlight(id) {
+    var el = state.doc.getElementById(id)
+    if (state.active && state.active !== el)
+        state.active.classList.remove("anchorman-active")
+    state.active = el
+    var splits = []
+    if (el) {
+        el.classList.add("anchorman-active")
+        var rects = boxes(el)
+        var total = 0
+        for (var i = 0; i < rects.length; ++i)
+            total += rects[i].width
+        var first = rects.length ? pageOfBox(rects[0]) : pageOf(el)
+        var before = 0
+        var page = first
+        for (var j = 0; j < rects.length; ++j) {
+            var p = pageOfBox(rects[j])
+            if (p > page && total > 0) {
+                splits.push({ page: p, share: before / total })
+                page = p
+            }
+            before += rects[j].width
+        }
+        if (first !== currentPage())
+            showPage(first)
+    }
+    sendAsyncMessage("anchorman:highlighted", { serial: state.serial, id: id, splits: splits })
+}
+
+addMessageListener("anchorman:highlight", function (message) {
+    if (current())
+        highlight(message.data.id)
+})
+
+addMessageListener("anchorman:show", function (message) {
+    if (current() && message.data.page !== currentPage())
+        showPage(message.data.page)
+})
+
+// A tap, given as a share of the view's width and height: the sentence
+// there, "" if none.
+// Not named like the answer: the WebView hands a frame script's own
+// messages back to its listeners, which made the answer ask again.
+addMessageListener("anchorman:hitTest", function (message) {
+    if (!current())
+        return
+    var el = state.doc.elementFromPoint(message.data.x * content.innerWidth,
+                                        message.data.y * content.innerHeight)
+    while (el && !(el.id && state.isSentence[el.id]))
+        el = el.parentElement
+    sendAsyncMessage("anchorman:hit", { serial: state.serial, id: el ? el.id : "" })
+})
+
+// Where playback starts on this page: the preferred sentence (the one
+// paused at) if it is on the page, else the topmost sentence, also one cut
+// off at the top, else the first one after the page. "" if there is none.
+addMessageListener("anchorman:startSentence", function (message) {
+    if (!current())
+        return
+    var page = currentPage()
+    var id = ""
+    var prefer = message.data.prefer ? state.doc.getElementById(message.data.prefer) : null
+    if (prefer && boxes(prefer).some(function (r) { return pageOfBox(r) === page }))
+        id = prefer.id
+    for (var i = 0; !id && i < state.sentences.length; ++i) {
+        var rects = boxes(state.sentences[i])
+        if (rects.length && pageOfBox(rects[rects.length - 1]) >= page)
+            id = state.sentences[i].id
+    }
+    sendAsyncMessage("anchorman:start", { serial: state.serial, id: id })
 })
 
 function important(css) {
