@@ -6,6 +6,7 @@ error: it comes back as {"error": code, "detail": text}, where code is one
 of the EpubError codes or "io", and QML shows a translated message.
 """
 
+import getpass
 import hashlib
 import os
 
@@ -17,9 +18,24 @@ from .package import read_package, text_length
 _MAX_KEY_LENGTH = 200
 
 
+_MEDIA_ROOT = "/run/media"
+
+
+def default_folders(documents):
+    """Where books are looked for unless the user chose a folder: the
+    documents folder and every memory card."""
+    try:
+        user = getpass.getuser()
+    except (KeyError, OSError):
+        return [documents]
+    return [documents] + library.card_folders(os.path.join(_MEDIA_ROOT, user))
+
+
 def list_books(folders):
-    return [{"path": book.path, "name": book.name}
-            for book in library.list_books(folders)]
+    """The readalouds below folders; removable is true for memory cards."""
+    return [{"path": book.path, "name": book.name,
+             "removable": os.path.realpath(book.path).startswith(_MEDIA_ROOT + "/")}
+            for book in library.list_books(folders, library.is_readaloud)]
 
 
 def open_book(epub_path, cache_dir):

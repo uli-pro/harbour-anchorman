@@ -9,7 +9,8 @@ ApplicationWindow {
     id: app
 
     property bool pythonReady: false
-    readonly property string libraryFolder: StandardPaths.documents + "/Readalouds"
+    // Chosen by the user; "" means Documents and all memory cards.
+    readonly property string libraryFolder: libraryFolderSetting.value || ""
     readonly property string cacheFolder: StandardPaths.cache + "/books"
     readonly property string positionsFile: StandardPaths.data + "/positions.json"
     // Text size in screen pixels, like FBReader; the frame script converts
@@ -25,6 +26,10 @@ ApplicationWindow {
                                                   Number(playbackRateSetting.value) || 1))
     // The open ReaderPage, for the cover's play button.
     property var reader: null
+
+    function setLibraryFolder(folder) {
+        libraryFolderSetting.value = folder
+    }
 
     function setFontSize(size) {
         fontSizeSetting.value = size
@@ -72,6 +77,12 @@ ApplicationWindow {
         id: fontSizeSetting
         key: "/apps/harbour-anchorman/fontSize"
         defaultValue: 36
+    }
+
+    ConfigurationValue {
+        id: libraryFolderSetting
+        key: "/apps/harbour-anchorman/libraryFolder"
+        defaultValue: ""
     }
 
     ConfigurationValue {

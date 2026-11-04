@@ -1,5 +1,6 @@
 import QtQuick 2.0
 import Sailfish.Silica 1.0
+import Sailfish.Pickers 1.0
 
 Page {
     id: page
@@ -7,21 +8,41 @@ Page {
     property bool loaded: false
     property bool opening: false
     property bool resumed: false
+    property bool searching: false
+    // Only the answer to the latest search counts.
+    property int searchSerial: 0
+    property var defaultFolders: []
 
-    function refresh() {
-        if (!app.pythonReady)
+    // Python handles one call after the other: searching a memory card
+    // first would delay the book read last. So that book opens first, and
+    // the library is searched when it is shown.
+    function start() {
+        if (!app.pythonReady || resumed)
             return
-        if (!resumed) {
-            resumed = true
-            // Start with the book read last, like closing and opening a book.
-            py.call("anchorman.bridge.load_last_book", [app.positionsFile], function (path) {
-                if (path)
-                    openBook(path, true)
+        resumed = true
+        py.call("anchorman.bridge.load_last_book", [app.positionsFile], function (path) {
+            if (path)
+                openBook(path, true)
+            else
+                search()
+        })
+    }
+
+    function search() {
+        var serial = ++searchSerial
+        searching = true
+        py.call("anchorman.bridge.default_folders", [StandardPaths.documents], function (folders) {
+            if (serial !== searchSerial)
+                return
+            defaultFolders = folders
+            var chosen = app.libraryFolder ? [app.libraryFolder] : folders
+            py.call("anchorman.bridge.list_books", [chosen], function (books) {
+                if (serial !== searchSerial)
+                    return
+                listView.model = books
+                loaded = true
+                searching = false
             })
-        }
-        py.call("anchorman.bridge.list_books", [[app.libraryFolder]], function (books) {
-            listView.model = books
-            loaded = true
         })
     }
 
@@ -34,6 +55,8 @@ Page {
                 console.warn("Cannot open", path, book.error, book.detail)
                 if (!resuming)
                     app.showError(app.errorText(book.error))
+                else if (!loaded)
+                    search()
                 return
             }
             py.call("anchorman.bridge.save_last_book", [app.positionsFile, path])
@@ -42,14 +65,18 @@ Page {
         })
     }
 
+    // Searched once when first shown; again on Refresh or a new folder.
     onStatusChanged: {
-        if (status === PageStatus.Activating)
-            refresh()
+        if (status === PageStatus.Activating && resumed && !loaded && !searching && !opening)
+            search()
     }
+
+    Component.onCompleted: start()
 
     Connections {
         target: app
-        onPythonReadyChanged: page.refresh()
+        onPythonReadyChanged: page.start()
+        onLibraryFolderChanged: page.search()
     }
 
     SilicaListView {
@@ -59,28 +86,62 @@ Page {
         opacity: opening ? 0.3 : 1
         enabled: !opening
 
+        PullDownMenu {
+            busy: searching
+
+            MenuItem {
+                text: qsTr("Book folder")
+                onClicked: pageStack.push(folderPicker, {
+                    path: app.libraryFolder || defaultFolders[defaultFolders.length - 1]
+                          || StandardPaths.documents
+                })
+            }
+            MenuItem {
+                visible: app.libraryFolder !== ""
+                text: qsTr("All folders")
+                onClicked: app.setLibraryFolder("")
+            }
+            MenuItem {
+                text: qsTr("Refresh")
+                onClicked: search()
+            }
+        }
+
         header: PageHeader {
             title: qsTr("Library")
+            description: app.libraryFolder ? app.libraryFolder.replace(/\/+$/, "").split("/").pop()
+                                           : qsTr("Documents and memory cards")
         }
 
         delegate: ListItem {
-            Label {
+            contentHeight: Theme.itemSizeMedium
+
+            Column {
                 x: Theme.horizontalPageMargin
                 width: parent.width - 2 * x
                 anchors.verticalCenter: parent.verticalCenter
-                text: modelData.name
-                truncationMode: TruncationMode.Fade
-                color: highlighted ? Theme.highlightColor : Theme.primaryColor
+
+                Label {
+                    width: parent.width
+                    text: modelData.name
+                    truncationMode: TruncationMode.Fade
+                    color: highlighted ? Theme.highlightColor : Theme.primaryColor
+                }
+                Label {
+                    // Tells two copies of a book apart.
+                    text: modelData.removable ? qsTr("SD card") : qsTr("Device")
+                    font.pixelSize: Theme.fontSizeExtraSmall
+                    color: highlighted ? Theme.secondaryHighlightColor : Theme.secondaryColor
+                }
             }
 
             onClicked: page.openBook(modelData.path, false)
         }
 
         ViewPlaceholder {
-            enabled: page.loaded && listView.count === 0
+            enabled: page.loaded && !searching && listView.count === 0
             text: qsTr("No books")
-            //: %1 is a folder name
-            hintText: qsTr("Copy EPUB readalouds to %1").arg("Documents/Readalouds")
+            hintText: qsTr("Copy EPUB readalouds with narration to Documents or a memory card, or choose another book folder in the pulley menu")
         }
 
         VerticalScrollDecorator { }
@@ -89,5 +150,20 @@ Page {
     BusyLabel {
         running: opening
         text: qsTr("Opening book")
+    }
+
+    BusyLabel {
+        running: searching && !opening && listView.count === 0
+        text: qsTr("Searching for books")
+    }
+
+    Component {
+        id: folderPicker
+
+        FolderPickerDialog {
+            title: qsTr("Book folder")
+            // The new setting starts a search.
+            onAccepted: app.setLibraryFolder(selectedPath)
+        }
     }
 }
