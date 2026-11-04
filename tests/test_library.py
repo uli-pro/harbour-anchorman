@@ -52,6 +52,16 @@ class ListBooksTest(TempDirTestCase):
         books = list_books([self.tmp], lambda path: path.endswith("b.epub"))
         self.assertEqual([b.name for b in books], ["b"])
 
+    def test_link_to_a_listed_book_lists_it_once(self):
+        write_files(self.tmp, {"a.epub": ""})
+        os.symlink(self.path("a.epub"), self.path("b.epub"))
+        self.assertEqual(len(list_books([self.tmp])), 1)
+
+    def test_names_not_valid_utf8_left_out(self):
+        write_files(self.tmp, {"good.epub": ""})
+        open(os.path.join(self.tmp.encode(), b"bad\xff.epub"), "w").close()
+        self.assertEqual([b.name for b in list_books([self.tmp])], ["good"])
+
     def test_same_folder_twice_lists_books_once(self):
         write_files(self.tmp, {"a.epub": ""})
         self.assertEqual(len(list_books([self.tmp, self.tmp])), 1)
@@ -81,6 +91,10 @@ class IsReadaloudTest(TempDirTestCase):
         self.assertFalse(is_readaloud(self.path("missing.epub")))
         os.mkdir(self.path("folder.epub"))
         self.assertFalse(is_readaloud(self.path("folder.epub")))
+
+    def test_fifo_is_not_opened(self):
+        os.mkfifo(self.path("pipe.epub"))
+        self.assertFalse(is_readaloud(self.path("pipe.epub")))  # would hang if opened
 
 
 class CardFoldersTest(TempDirTestCase):

@@ -34,7 +34,7 @@ def default_folders(documents):
 def list_books(folders):
     """The readalouds below folders; removable is true for memory cards."""
     return [{"path": book.path, "name": book.name,
-             "removable": book.path.startswith(_MEDIA_ROOT + "/")}
+             "removable": os.path.realpath(book.path).startswith(_MEDIA_ROOT + "/")}
             for book in library.list_books(folders, library.is_readaloud)]
 
 

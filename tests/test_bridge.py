@@ -1,5 +1,7 @@
+import getpass
 import json
 import os
+from unittest import mock
 
 from anchorman import bridge
 
@@ -35,9 +37,12 @@ class BridgeTest(TempDirTestCase):
                          [{"path": self.epub, "name": "happy-prince", "removable": False}])
 
     def test_default_folders(self):
-        folders = bridge.default_folders("/home/user/Documents")
-        self.assertEqual(folders[0], "/home/user/Documents")
-        self.assertTrue(all(f.startswith("/run/media/") for f in folders[1:]))
+        user = getpass.getuser()
+        write_files(self.tmp, {"media/" + user + "/card/x": ""})
+        with mock.patch.object(bridge, "_MEDIA_ROOT", os.path.join(self.tmp, "media")):
+            self.assertEqual(bridge.default_folders("/home/user/Documents"),
+                             ["/home/user/Documents",
+                              os.path.join(self.tmp, "media", user, "card")])
 
     def test_open_book(self):
         book = bridge.open_book(self.epub, self.cache_dir)

@@ -13,58 +13,58 @@
 <context>
     <name>LibraryPage</name>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="82"/>
-        <location filename="../qml/pages/LibraryPage.qml" line="156"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="93"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="164"/>
         <source>Book folder</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="90"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="101"/>
         <source>All folders</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="97"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="105"/>
         <source>Refresh</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="103"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="111"/>
         <source>Library</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="105"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="113"/>
         <source>Documents and memory cards</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="124"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="132"/>
         <source>SD card</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="124"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="132"/>
         <source>Device</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="135"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="143"/>
         <source>No books</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="136"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="144"/>
         <source>Copy EPUB readalouds with narration to Documents or a memory card, or choose another book folder in the pulley menu</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="149"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="157"/>
         <source>Searching for books</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="144"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="152"/>
         <source>Opening book</source>
         <translation type="unfinished"></translation>
     </message>
