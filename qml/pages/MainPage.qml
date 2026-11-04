@@ -38,6 +38,16 @@ Page {
         text: qsTr("Hello, reader!")
     }
 
+    Button {
+        anchors {
+            top: hello.bottom
+            topMargin: Theme.paddingLarge
+            horizontalCenter: parent.horizontalCenter
+        }
+        text: "Open test chapter"
+        onClicked: pageStack.push(Qt.resolvedUrl("ReaderPage.qml"))
+    }
+
     Python {
         Component.onCompleted: {
             addImportPath(Qt.resolvedUrl("../../python"))
