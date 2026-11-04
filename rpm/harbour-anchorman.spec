@@ -10,6 +10,7 @@ Requires:   sailfishsilica-qt5 >= 0.10.9
 Requires:   libsailfishapp-launcher
 Requires:   pyotherside-qml-plugin-python3-qt5 >= 1.5
 Requires:   sailfish-components-webview-qt5
+Requires:   qt5-qtdeclarative-import-multimedia
 BuildRequires:  pkgconfig(sailfishapp) >= 1.0.3
 BuildRequires:  pkgconfig(Qt5Core)
 BuildRequires:  pkgconfig(Qt5Qml)

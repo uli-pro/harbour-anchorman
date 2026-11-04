@@ -1,6 +1,7 @@
 import QtQuick 2.0
 import Sailfish.Silica 1.0
 import Sailfish.WebView 1.0
+import "../components"
 
 WebViewPage {
     id: page
@@ -10,6 +11,8 @@ WebViewPage {
     property int chapter: -1
     property int requested: -1
     property var sentenceIds: []
+    // The clips of the chapter in the view, for starting playback there.
+    property var sentenceClips: []
     property var pendingTarget: null
     property string loadingUrl: ""
     // Messages from the frame script carry the serial of their layout, so
@@ -18,6 +21,7 @@ WebViewPage {
     property bool ready: false
     property bool covered: true
     property int laidOutFontSize: 0
+    property bool laidOutBar: false
     property int pageIndex: 0
     property int pageCount: 0
     property string firstId: ""
@@ -31,6 +35,25 @@ WebViewPage {
     property int bookPages: 0
     property real fraction: 0
     readonly property color pageColor: Theme.colorScheme === Theme.LightOnDark ? "black" : "white"
+
+    // Listening. The bar appears with playback and goes when the reader
+    // turns pages while paused.
+    property bool barShown: false
+    // The sentence spoken (or paused at), marked in the chapter's layouts.
+    property string highlightId: ""
+    // Further pages of the sentence spoken: [{page, share}], see framescript.js.
+    property var splits: []
+    // The next chapter with audio, read ahead: {after, chapter, clips};
+    // chapter -1 at the end of the book.
+    property var upcoming: null
+    // Sentence heard last before the book was closed; Play resumes there.
+    property string resumeId: ""
+    readonly property bool listening: player.active && player.chapter === chapter
+    readonly property bool playing: player.playing
+    property double savedAt: 0
+    // Left for the library: the page is going, and must neither lay out
+    // nor save again (it would save the top of the page over the sentence).
+    property bool closed: false
 
     // Turning pages needs the horizontal swipe; the library is in the pulley.
     backNavigation: false
@@ -49,9 +72,11 @@ WebViewPage {
         py.call("anchorman.bridge.load_position", [app.positionsFile, book.key], function (pos) {
             if (typeof page === "undefined" || !page)
                 return  // the page was closed meanwhile
-            if (pos && pos.spine < book.spine.length)
+            if (pos && pos.spine < book.spine.length) {
+                if (pos.heard)
+                    resumeId = pos.id
                 loadChapter(pos.spine, { id: pos.id, fraction: pos.fraction })
-            else
+            } else
                 loadChapter(Math.max(0, nextLinear(-1, 1)), { fraction: 0 })
         })
     }
@@ -68,7 +93,7 @@ WebViewPage {
         ready = false
         covered = true
         if (!item.overlay) {
-            show(index, [], target)
+            show(index, [], [], target)
             return
         }
         py.call("anchorman.bridge.read_chapter", [book.root, item.path, item.overlay], function (result) {
@@ -77,17 +102,18 @@ WebViewPage {
             if (result.error) {
                 // The text can still be read without sentences.
                 console.warn("Cannot read overlay", item.overlay, result.error, result.detail)
-                show(index, [], target)
+                show(index, [], [], target)
             } else {
-                show(index, result.ids, target)
+                show(index, result.ids, result.sentences, target)
             }
         })
     }
 
-    function show(index, ids, target) {
+    function show(index, ids, clips, target) {
         chapter = index
         requested = -1
         sentenceIds = ids
+        sentenceClips = clips
         pendingTarget = target
         var view = flickable.webView
         var url = fileUrl(book.root + "/" + book.spine[index].path)
@@ -106,13 +132,22 @@ WebViewPage {
 
     function layout(target) {
         laidOutFontSize = app.fontSize
+        laidOutBar = barShown
+        // While listening the page shows the sentence spoken; paused, it
+        // stays where the reader is.
+        if (listening && player.playing && highlightId)
+            target = { id: highlightId }
         flickable.webView.sendAsyncMessage("anchorman:layout", {
             serial: serial,
             ids: sentenceIds,
             target: target,
+            highlight: listening ? highlightId : "",
+            activeColor: cssColor(Theme.highlightBackgroundColor, 0.3),
             margin: 24,
             marginTop: 4,
             marginBottom: 12,
+            // The bar must not cover the text read along.
+            barHeight: barShown ? bar.height : 0,
             fontSize: app.fontSize,
             lineHeight: 1.3,
             color: cssColor(Theme.primaryColor, 1),
@@ -123,12 +158,16 @@ WebViewPage {
     // Same chapter and sentence, new text size. While a layout is under way
     // the "page" message calls this again if the size has changed meanwhile.
     function relayout() {
-        if (!ready)
+        if (!ready || closed)
             return
         serial++
         ready = false
         covered = true
         charsPerPage = 0
+        // Page numbers of the old layout no longer fit.
+        splits = []
+        if (listening)
+            player.setMarks([])
         layout({ keep: true, id: firstId, fraction: fraction })
     }
 
@@ -206,7 +245,7 @@ WebViewPage {
             fraction = data.fraction
             updateBookPages()
             savePosition()
-            if (laidOutFontSize !== app.fontSize)
+            if (laidOutFontSize !== app.fontSize || laidOutBar !== barShown)
                 relayout()
             break
         case "anchorman:painted":
@@ -223,6 +262,148 @@ WebViewPage {
             if (next >= 0)
                 loadChapter(next, data.delta > 0 ? { fraction: 0 } : { end: true })
             break
+        case "anchorman:highlighted":
+            if (data.serial !== serial || data.id !== player.currentId || !listening)
+                return
+            splits = data.splits
+            var clip = player.clips[player.index]
+            if (player.hasEnd(clip)) {
+                player.setMarks(splits.map(function (split) {
+                    return clip.begin + split.share * (clip.end - clip.begin)
+                }))
+            }
+            break
+        case "anchorman:hit":
+            if (data.serial !== serial)
+                return
+            if (data.id)
+                playSentence(data.id)
+            else if (!player.playing)
+                playFromPage()
+            break
+        case "anchorman:start":
+            if (data.serial !== serial)
+                return
+            if (data.id) {
+                playSentence(data.id)
+            } else {
+                // Nothing to hear on this page: the next chapter with audio.
+                fetchAudioChapter(chapter, function (index, clips) {
+                    if (index >= 0)
+                        startPlayer(index, clips, 0)
+                })
+            }
+            break
+        }
+    }
+
+    function nextAudio(from) {
+        for (var i = from + 1; i < book.spine.length; ++i) {
+            if (book.spine[i].linear && book.spine[i].overlay)
+                return i
+        }
+        return -1
+    }
+
+    // Calls back with the next chapter after from that has clips, or -1.
+    function fetchAudioChapter(from, callback) {
+        var index = nextAudio(from)
+        if (index < 0) {
+            callback(-1, [])
+            return
+        }
+        var item = book.spine[index]
+        py.call("anchorman.bridge.read_chapter", [book.root, item.path, item.overlay], function (result) {
+            if (typeof page === "undefined" || !page)
+                return
+            if (result.error || result.sentences.length === 0)
+                fetchAudioChapter(index, callback)
+            else
+                callback(index, result.sentences)
+        })
+    }
+
+    // The player first, then the bar: showing the bar lays the chapter out
+    // again, around the sentence the player has just begun.
+    function stopPlayer() {
+        player.stop()
+        barShown = false
+        highlightId = ""
+    }
+
+    function startPlayer(index, clips, i, offset) {
+        resumeId = ""
+        player.start(index, clips, i, offset)
+        barShown = true
+    }
+
+    function playSentence(id) {
+        if (listening && player.currentId === id && !player.playing) {
+            // The sentence paused at: on from where it stopped.
+            player.resume()
+            barShown = true
+            return
+        }
+        for (var i = 0; i < sentenceClips.length; ++i) {
+            if (sentenceClips[i].id === id) {
+                startPlayer(chapter, sentenceClips, i)
+                return
+            }
+        }
+    }
+
+    function playFromPage() {
+        if (!ready)
+            return
+        var prefer = player.active ? (listening ? player.currentId : "") : resumeId
+        flickable.webView.sendAsyncMessage("anchorman:startSentence", { prefer: prefer })
+    }
+
+    function hit(x, y) {
+        flickable.webView.sendAsyncMessage("anchorman:hitTest", { x: x, y: y })
+    }
+
+    function togglePlay() {
+        if (player.playing) {
+            player.pause()
+            savePosition()
+        } else {
+            playFromPage()
+        }
+    }
+
+    function followSentence(index, i) {
+        highlightId = player.clips[i].id
+        splits = []
+        if (index !== chapter && index !== requested)
+            loadChapter(index, { id: highlightId })
+        else if (index === chapter)
+            // Also during a layout: the frame script takes messages in order,
+            // and ignores this one if a new chapter is still loading.
+            flickable.webView.sendAsyncMessage("anchorman:highlight", { id: highlightId })
+        // Pages change rarely while listening; save now and then.
+        if (Date.now() - savedAt > 20000)
+            savePosition()
+        if (!upcoming || upcoming.after !== index) {
+            upcoming = { after: index, chapter: -2 }
+            fetchAudioChapter(index, function (next, clips) {
+                if (upcoming && upcoming.after === index)
+                    upcoming = { after: index, chapter: next, clips: clips }
+                handOver()
+            })
+        }
+    }
+
+    // The player finished a chapter; give it the next one when it is read.
+    function handOver() {
+        if (!player.waiting || !upcoming || upcoming.after !== player.chapter
+                || upcoming.chapter === -2)
+            return
+        if (upcoming.chapter < 0) {
+            savePosition()
+            stopPlayer()  // end of the book
+        } else {
+            player.continueWith(upcoming.chapter, upcoming.clips)
         }
     }
 
@@ -235,13 +416,26 @@ WebViewPage {
     }
 
     function turn(delta) {
-        if (ready)
-            flickable.webView.sendAsyncMessage("anchorman:turn", { delta: delta })
+        if (!ready)
+            return
+        // Paused and turning pages: reading, not listening.
+        if (player.active && !player.playing)
+            barShown = false
+        resumeId = ""
+        flickable.webView.sendAsyncMessage("anchorman:turn", { delta: delta })
     }
 
     function savePosition() {
+        if (chapter < 0 || closed)
+            return
+        savedAt = Date.now()
+        // The sentence heard, unless the reader paused and turned away; or
+        // the one heard before the book was closed, until pages are turned.
+        var heardId = listening && (player.playing || barShown) ? player.currentId
+                    : !player.active ? resumeId : ""
         py.call("anchorman.bridge.save_position",
-                [app.positionsFile, book.key, { spine: chapter, id: firstId, fraction: fraction }],
+                [app.positionsFile, book.key, { spine: chapter, id: heardId || firstId,
+                                                fraction: fraction, heard: heardId !== "" }],
                 function (result) {
                     if (result !== true)
                         console.warn("Cannot save position", result.error, result.detail)
@@ -251,6 +445,40 @@ WebViewPage {
     Connections {
         target: app
         onFontSizeChanged: page.relayout()
+    }
+
+    onBarShownChanged: relayout()
+
+    // Closing the app gives no further chance to save.
+    Connections {
+        target: Qt.application
+        onStateChanged: {
+            if (Qt.application.state !== Qt.ApplicationActive)
+                page.savePosition()
+        }
+    }
+
+    Component.onCompleted: app.reader = page
+    Component.onDestruction: {
+        if (app.reader === page)
+            app.reader = null
+    }
+
+    Player {
+        id: player
+
+        root: book.root
+        rate: app.playbackRate
+        onSentence: page.followSentence(chapter, index)
+        onFinished: page.handOver()
+        onMarked: {
+            if (n < page.splits.length)
+                flickable.webView.sendAsyncMessage("anchorman:show", { page: page.splits[n].page })
+        }
+        onFailed: {
+            page.stopPlayer()
+            app.showError(qsTr("The narration could not be played."))
+        }
     }
 
     Rectangle {
@@ -324,12 +552,17 @@ WebViewPage {
             backgroundColor: pageColor
 
             MenuItem {
-                text: qsTr("Text size")
-                onClicked: pageStack.push(Qt.resolvedUrl("TextSizePage.qml"))
+                text: qsTr("Settings")
+                onClicked: pageStack.push(Qt.resolvedUrl("SettingsPage.qml"))
             }
             MenuItem {
                 text: qsTr("Library")
-                onClicked: pageStack.pop()
+                onClicked: {
+                    savePosition()
+                    closed = true
+                    stopPlayer()
+                    pageStack.pop()
+                }
             }
             MenuItem {
                 text: qsTr("Contents")
@@ -337,9 +570,21 @@ WebViewPage {
                     var toc = pageStack.push(Qt.resolvedUrl("TocPage.qml"),
                                              { toc: book.toc, currentChapter: chapter })
                     toc.selected.connect(function (index, fragment) {
+                        resumeId = ""
+                        // A jump away from the sentence spoken: listening
+                        // would pull the page back at once.
+                        if (player.playing) {
+                            player.pause()
+                            savePosition()
+                        }
                         loadChapter(index, fragment ? { id: fragment } : { fraction: 0 })
                     })
                 }
+            }
+            MenuItem {
+                visible: !barShown
+                text: qsTr("Play")
+                onClicked: playFromPage()
             }
         }
 
@@ -354,6 +599,9 @@ WebViewPage {
             webView.addMessageListener("anchorman:page")
             webView.addMessageListener("anchorman:edge")
             webView.addMessageListener("anchorman:painted")
+            webView.addMessageListener("anchorman:highlighted")
+            webView.addMessageListener("anchorman:hit")
+            webView.addMessageListener("anchorman:start")
             page.start()
         }
 
@@ -394,6 +642,54 @@ WebViewPage {
                         turn(-1)
                     else if (mouse.x > width * 3 / 4)
                         turn(1)
+                    else if (ready)
+                        hit(mouse.x / width, mouse.y / height)
+                }
+            }
+        }
+    }
+
+    Rectangle {
+        id: bar
+
+        anchors.bottom: parent.bottom
+        width: parent.width
+        height: Theme.itemSizeMedium
+        color: pageColor
+        visible: barShown
+
+        // Taps beside the buttons must not reach the page below.
+        MouseArea {
+            anchors.fill: parent
+        }
+
+        Row {
+            anchors.centerIn: parent
+            spacing: Theme.paddingLarge
+
+            IconButton {
+                icon.source: "image://theme/icon-m-previous"
+                onClicked: player.previous()
+            }
+            IconButton {
+                icon.source: player.playing ? "image://theme/icon-m-pause" : "image://theme/icon-m-play"
+                onClicked: togglePlay()
+            }
+            IconButton {
+                icon.source: "image://theme/icon-m-next"
+                onClicked: player.next()
+            }
+            BackgroundItem {
+                width: Theme.itemSizeMedium
+                height: Theme.itemSizeSmall
+                anchors.verticalCenter: parent.verticalCenter
+                onClicked: pageStack.push(Qt.resolvedUrl("SettingsPage.qml"))
+
+                Label {
+                    anchors.centerIn: parent
+                    color: parent.highlighted ? Theme.highlightColor : Theme.primaryColor
+                    //: Playback speed on the button that opens the settings, e.g. "1.25×"
+                    text: qsTr("%1×").arg(Number(app.playbackRate).toLocaleString(Qt.locale(), "f", 2))
                 }
             }
         }

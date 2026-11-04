@@ -19,8 +19,20 @@ ApplicationWindow {
     readonly property int fontSize: Math.max(minFontSize, Math.min(maxFontSize,
                                              Number(fontSizeSetting.value) || 36))
 
+    readonly property real minPlaybackRate: 0.5
+    readonly property real maxPlaybackRate: 2.5
+    readonly property real playbackRate: Math.max(minPlaybackRate, Math.min(maxPlaybackRate,
+                                                  Number(playbackRateSetting.value) || 1))
+    // The open ReaderPage, for the cover's play button.
+    property var reader: null
+
     function setFontSize(size) {
         fontSizeSetting.value = size
+    }
+
+    function setPlaybackRate(rate) {
+        // Slider steps of 0.05 are not exact in binary.
+        playbackRateSetting.value = Math.round(rate * 100) / 100
     }
 
     function errorText(code) {
@@ -60,6 +72,12 @@ ApplicationWindow {
         id: fontSizeSetting
         key: "/apps/harbour-anchorman/fontSize"
         defaultValue: 36
+    }
+
+    ConfigurationValue {
+        id: playbackRateSetting
+        key: "/apps/harbour-anchorman/playbackRate"
+        defaultValue: 1
     }
 
     Python {
