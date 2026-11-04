@@ -104,6 +104,10 @@ class LastBookTest(TempDirTestCase):
         os.remove(self.epub)
         self.assertIsNone(positions.load_last(self.path))
 
+    def test_name_not_valid_utf8(self):
+        positions.save(self.path, "b\udcfcch.epub", POSITION)
+        self.assertEqual(positions.load(self.path, "b\udcfcch.epub"), POSITION)
+
     def test_not_a_string(self):
         with open(self.path, "w") as f:
             json.dump({"books": {}, "last": 5}, f)

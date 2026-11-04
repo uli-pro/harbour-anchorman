@@ -6,12 +6,15 @@ error: it comes back as {"error": code, "detail": text}, where code is one
 of the EpubError codes or "io", and QML shows a translated message.
 """
 
+import hashlib
 import os
 
 from . import cache, library, positions
 from .errors import EpubError
 from .overlay import read_overlay
 from .package import read_package
+
+_MAX_KEY_LENGTH = 200
 
 
 def list_books(folders):
@@ -21,8 +24,7 @@ def list_books(folders):
 
 def open_book(epub_path, cache_dir):
     try:
-        root = cache.open_book(epub_path, cache_dir)
-        book = read_package(root)
+        root, book = cache.open_book(epub_path, cache_dir, read_package)
     except EpubError as e:
         return _error(e.code, e.detail)
     except OSError as e:
@@ -32,9 +34,7 @@ def open_book(epub_path, cache_dir):
         spine_index.setdefault(item.path, index)
     return {
         "root": root,
-        # The identifier stays the same when the file is renamed or synced
-        # again, so the reading position follows the book.
-        "key": book.identifier or os.path.basename(epub_path),
+        "key": _position_key(book.identifier or os.path.basename(epub_path)),
         "title": book.title,
         "authors": book.authors,
         "language": book.language,
@@ -90,6 +90,15 @@ def save_last_book(path, epub_path):
     except OSError as e:
         return _error("io", str(e))
     return True
+
+
+def _position_key(name):
+    # The identifier stays the same when the file is renamed or synced again,
+    # so the reading position follows the book. It comes from the book and
+    # has no length limit; a huge one must not fill the positions file.
+    if len(name) <= _MAX_KEY_LENGTH:
+        return name
+    return "sha1:" + hashlib.sha1(name.encode("utf-8", "surrogateescape")).hexdigest()
 
 
 def _error(code, detail):

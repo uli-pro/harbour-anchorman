@@ -64,6 +64,16 @@ class BridgeTest(TempDirTestCase):
         self.assertEqual(bridge.open_book(self.epub, self.cache_dir)["key"],
                          "happy-prince.epub")
 
+    def test_huge_identifier_gives_short_key(self):
+        entries = [(name, data.replace(b"urn:uuid:4f1c2a9e-6b0d-4d5e-9a57-3c8e2f7b1d60",
+                                       b"x" * 100000))
+                   if name == "OEBPS/content.opf" else (name, data)
+                   for name, data in mini_entries()]
+        make_epub(self.epub, entries)
+        key = bridge.open_book(self.epub, self.cache_dir)["key"]
+        self.assertTrue(key.startswith("sha1:"))
+        self.assertEqual(len(key), 45)
+
     def test_broken_book(self):
         with open(self.epub, "wb") as f:
             f.write(b"not a zip")
@@ -107,10 +117,17 @@ class BridgeTest(TempDirTestCase):
         self.assertIsNone(bridge.load_last_book(path))
         self.assertIs(bridge.save_last_book(path, self.epub), True)
         self.assertEqual(bridge.load_last_book(path), self.epub)
-        missing = os.path.join(self.tmp, "missing", "positions.json")
-        self.assertEqual(bridge.save_last_book(missing, self.epub)["error"], "io")
+        open(os.path.join(self.tmp, "file"), "w").close()
+        broken = os.path.join(self.tmp, "file", "positions.json")
+        self.assertEqual(bridge.save_last_book(broken, self.epub)["error"], "io")
+
+    def test_save_position_creates_folder(self):
+        path = os.path.join(self.tmp, "new", "positions.json")
+        position = {"spine": 0, "id": "", "fraction": 0}
+        self.assertIs(bridge.save_position(path, "book", position), True)
 
     def test_save_position_io_error(self):
-        path = os.path.join(self.tmp, "missing", "positions.json")
+        open(os.path.join(self.tmp, "file"), "w").close()
+        path = os.path.join(self.tmp, "file", "positions.json")
         result = bridge.save_position(path, "book", {"spine": 0, "id": "", "fraction": 0})
         self.assertEqual(result["error"], "io")

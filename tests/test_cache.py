@@ -4,6 +4,7 @@ from unittest import mock
 
 from anchorman import cache
 from anchorman.errors import EpubError
+from anchorman.package import read_package
 
 from .helpers import TempDirTestCase, make_epub, mini_entries
 
@@ -19,6 +20,9 @@ class OpenBookTest(TempDirTestCase):
         make_epub(path, mini_entries())
         return path
 
+    def open(self, epub, keep=cache.KEEP):
+        return cache.open_book(epub, self.cache_dir, read_package, keep)[0]
+
     def books(self):
         return sorted(os.listdir(self.cache_dir))
 
@@ -28,17 +32,17 @@ class OpenBookTest(TempDirTestCase):
         os.utime(root, (then, then))
 
     def test_first_open_unpacks(self):
-        root = cache.open_book(self.epub("a.epub"), self.cache_dir)
+        root = self.open(self.epub("a.epub"))
         self.assertEqual(os.path.dirname(root), self.cache_dir)
         self.assertTrue(os.path.isfile(os.path.join(root, "OEBPS", "content.opf")))
 
     def test_second_open_is_a_hit(self):
         epub = self.epub("a.epub")
-        root = cache.open_book(epub, self.cache_dir)
+        root = self.open(epub)
         marker = os.path.join(root, "marker")
         open(marker, "w").close()
         self.age(root, 100)
-        self.assertEqual(cache.open_book(epub, self.cache_dir), root)
+        self.assertEqual(self.open(epub), root)
         self.assertTrue(os.path.exists(marker))
         self.assertGreater(os.stat(root).st_mtime, time.time() - 50)
 
@@ -50,29 +54,29 @@ class OpenBookTest(TempDirTestCase):
 
     def test_keeps_the_two_most_recent_books(self):
         epub_a = self.epub("a.epub")
-        a = cache.open_book(epub_a, self.cache_dir)
+        a = self.open(epub_a)
         self.age(a, 300)
-        b = cache.open_book(self.epub("b.epub"), self.cache_dir)
+        b = self.open(self.epub("b.epub"))
         self.age(b, 200)
-        cache.open_book(epub_a, self.cache_dir)  # a is newest now
-        c = cache.open_book(self.epub("c.epub"), self.cache_dir)
+        self.open(epub_a)  # a is newest now
+        c = self.open(self.epub("c.epub"))
         self.assertEqual(self.books(), sorted(os.path.basename(p) for p in (a, c)))
 
     def test_keep_one(self):
-        cache.open_book(self.epub("a.epub"), self.cache_dir, keep=1)
-        b = cache.open_book(self.epub("b.epub"), self.cache_dir, keep=1)
+        self.open(self.epub("a.epub"), keep=1)
+        b = self.open(self.epub("b.epub"), keep=1)
         self.assertEqual(self.books(), [os.path.basename(b)])
 
     def test_removes_unfinished_extractions(self):
         os.makedirs(os.path.join(self.cache_dir, "0123456789abcdef.part"))
-        root = cache.open_book(self.epub("a.epub"), self.cache_dir)
+        root = self.open(self.epub("a.epub"))
         self.assertEqual(self.books(), [os.path.basename(root)])
 
     def test_leaves_foreign_entries_alone(self):
         os.makedirs(os.path.join(self.cache_dir, "other"))
         os.makedirs(os.path.join(self.cache_dir, "0123456789ABCDEF"))
-        cache.open_book(self.epub("a.epub"), self.cache_dir, keep=1)
-        cache.open_book(self.epub("b.epub"), self.cache_dir, keep=1)
+        self.open(self.epub("a.epub"), keep=1)
+        self.open(self.epub("b.epub"), keep=1)
         self.assertIn("other", self.books())
         self.assertIn("0123456789ABCDEF", self.books())
 
@@ -81,24 +85,41 @@ class OpenBookTest(TempDirTestCase):
         with open(epub, "wb") as f:
             f.write(b"not a zip")
         with self.assertRaises(EpubError) as cm:
-            cache.open_book(epub, self.cache_dir)
+            self.open(epub)
         self.assertEqual(cm.exception.code, "not_zip")
         self.assertEqual(self.books(), [])
 
     def test_broken_book_keeps_cached_books(self):
-        a = cache.open_book(self.epub("a.epub"), self.cache_dir)
-        b = cache.open_book(self.epub("b.epub"), self.cache_dir)
+        a = self.open(self.epub("a.epub"))
+        b = self.open(self.epub("b.epub"))
         epub = os.path.join(self.tmp, "broken.epub")
         with open(epub, "wb") as f:
             f.write(b"not a zip")
         with self.assertRaises(EpubError):
-            cache.open_book(epub, self.cache_dir)
+            self.open(epub)
         self.assertEqual(self.books(), sorted(os.path.basename(p) for p in (a, b)))
 
+    def test_unreadable_book_keeps_cached_books(self):
+        a = self.open(self.epub("a.epub"))
+        b = self.open(self.epub("b.epub"))
+        epub = os.path.join(self.tmp, "c.epub")
+        make_epub(epub, [(name, b"<broken" if name == "OEBPS/content.opf" else data)
+                         for name, data in mini_entries()])
+        with self.assertRaises(EpubError) as cm:
+            self.open(epub)
+        self.assertEqual(cm.exception.code, "bad_xml")
+        self.assertEqual(self.books(), sorted(os.path.basename(p) for p in (a, b)))
+
+    def test_returns_what_read_returns(self):
+        epub = self.epub("a.epub")
+        root, result = cache.open_book(epub, self.cache_dir, len)
+        self.assertEqual(result, len(root))
+        self.assertEqual(cache.open_book(epub, self.cache_dir, len), (root, len(root)))
+
     def test_makes_room_when_space_is_short(self):
-        a = cache.open_book(self.epub("a.epub"), self.cache_dir)
+        a = self.open(self.epub("a.epub"))
         self.age(a, 300)
-        b = cache.open_book(self.epub("b.epub"), self.cache_dir)
+        b = self.open(self.epub("b.epub"))
         real_extract = cache.archive.extract
         calls = []
 
@@ -109,11 +130,11 @@ class OpenBookTest(TempDirTestCase):
             real_extract(epub_path, dest_dir)
 
         with mock.patch.object(cache.archive, "extract", extract):
-            c = cache.open_book(self.epub("c.epub"), self.cache_dir)
+            c = self.open(self.epub("c.epub"))
         names = [os.path.basename(p) for p in (a, b, c)]
         self.assertEqual(calls, [sorted(names[:2]), [names[1]]])
         self.assertEqual(self.books(), sorted(names[1:]))
 
     def test_missing_file(self):
         with self.assertRaises(OSError):
-            cache.open_book(os.path.join(self.tmp, "missing.epub"), self.cache_dir)
+            self.open(os.path.join(self.tmp, "missing.epub"))

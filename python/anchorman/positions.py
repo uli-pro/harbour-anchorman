@@ -64,9 +64,13 @@ def _read_all(path):
 def _write(path, state):
     # A new file renamed over the old one: a crash never leaves a
     # half-written file.
+    directory = os.path.dirname(path)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
     tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(state, f, ensure_ascii=False, sort_keys=True)
+    # ASCII escapes also cover file names that are not valid UTF-8.
+    with open(tmp, "w", encoding="ascii") as f:
+        json.dump(state, f, sort_keys=True)
         f.flush()
         os.fsync(f.fileno())
     os.replace(tmp, path)
