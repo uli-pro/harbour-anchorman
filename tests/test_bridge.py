@@ -37,10 +37,10 @@ class BridgeTest(TempDirTestCase):
         self.assertEqual(book["language"], "en")
         self.assertEqual(book["duration"], 39000)
         self.assertEqual(book["activeClass"], "-epub-media-overlay-active")
-        self.assertEqual([(i["path"], i["overlay"], i["linear"]) for i in book["spine"]], [
-            ("OEBPS/title.xhtml", None, True),
-            ("OEBPS/chapter.xhtml", "OEBPS/MediaOverlays/chapter.smil", True)])
-        self.assertTrue(all(i["chars"] > 0 for i in book["spine"]))
+        self.assertEqual(book["spine"], [
+            {"path": "OEBPS/title.xhtml", "overlay": None, "linear": True},
+            {"path": "OEBPS/chapter.xhtml",
+             "overlay": "OEBPS/MediaOverlays/chapter.smil", "linear": True}])
         self.assertEqual(book["toc"], [
             {"title": "Title Page", "path": "OEBPS/title.xhtml", "fragment": "",
              "level": 0, "spine": 0},
@@ -83,6 +83,12 @@ class BridgeTest(TempDirTestCase):
     def test_missing_file(self):
         result = bridge.open_book(os.path.join(self.tmp, "missing.epub"), self.cache_dir)
         self.assertEqual(result["error"], "io")
+
+    def test_chapter_lengths(self):
+        root = bridge.open_book(self.epub, self.cache_dir)["root"]
+        paths = ["OEBPS/title.xhtml", "OEBPS/chapter.xhtml", "OEBPS/title.xhtml",
+                 "OEBPS/missing.xhtml"]
+        self.assertEqual(bridge.chapter_lengths(root, paths), [31, 233, 31, 0])
 
     def test_read_chapter(self):
         book = bridge.open_book(self.epub, self.cache_dir)

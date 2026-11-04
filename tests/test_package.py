@@ -226,5 +226,16 @@ class TextLengthTest(TempDirTestCase):
         self.assertEqual(text_length(self.tmp, "bad.xhtml"), 0)
         self.assertEqual(text_length(self.tmp, "missing.xhtml"), 0)
 
+    def test_without_xhtml_body_counts_whole_document(self):
+        write_files(self.tmp, {"c.svg": '<svg xmlns="http://www.w3.org/2000/svg"><text>Hi there</text></svg>'})
+        self.assertEqual(text_length(self.tmp, "c.svg"), len("Hi there"))
+
+    def test_forbidden_or_oversized_count_zero(self):
+        write_files(self.tmp, {
+            "dtd.xhtml": '<!DOCTYPE html [<!ENTITY a "x">]><html xmlns="http://www.w3.org/1999/xhtml"><body>&a;</body></html>',
+            "big.xhtml": '<html xmlns="http://www.w3.org/1999/xhtml"><body>' + "x" * (10 * 1024 * 1024) + '</body></html>'})
+        self.assertEqual(text_length(self.tmp, "dtd.xhtml"), 0)
+        self.assertEqual(text_length(self.tmp, "big.xhtml"), 0)
+
     def test_mini_chapter(self):
         self.assertGreater(text_length(MINI_DIR, "OEBPS/chapter.xhtml"), 100)

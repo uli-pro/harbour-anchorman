@@ -40,15 +40,26 @@ def open_book(epub_path, cache_dir):
         "language": book.language,
         "duration": book.duration,
         "activeClass": book.active_class,
-        # chars lets QML estimate page numbers across the book.
         "spine": [{"path": item.path, "overlay": item.overlay,
-                   "linear": item.linear, "chars": text_length(root, item.path)}
-                  for item in book.spine],
+                   "linear": item.linear} for item in book.spine],
         "toc": [{"title": entry.title, "path": entry.path,
                  "fragment": entry.fragment, "level": entry.level,
                  "spine": spine_index.get(entry.path, -1)}
                 for entry in book.toc],
     }
+
+
+def chapter_lengths(root, paths):
+    """Characters of text in each chapter, for estimating page numbers.
+
+    A separate call, so that parsing every chapter does not delay opening
+    the book.
+    """
+    lengths = {}
+    for path in paths:
+        if path not in lengths:
+            lengths[path] = text_length(root, path)
+    return [lengths[path] for path in paths]
 
 
 def read_chapter(root, chapter_path, smil_path):
