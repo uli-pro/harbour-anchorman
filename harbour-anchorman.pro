@@ -14,6 +14,7 @@ DISTFILES += \
     qml/harbour-anchorman.qml \
     qml/pages/*.qml \
     qml/cover/*.qml \
+    qml/js/*.js \
     python/anchorman/*.py \
     rpm/harbour-anchorman.spec \
     harbour-anchorman.desktop
