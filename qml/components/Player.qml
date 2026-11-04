@@ -55,6 +55,8 @@ Item {
     // Seeks are dropped until the file reports seekable, and a playback rate
     // only takes effect when a file is loaded (measured on the device).
     function load(path, ms, reload) {
+        // A rate changed while paused is taken up with the next load.
+        reload = reload || loadedRate !== rate
         if (path === loadedPath && !reload && pendingSeek < 0 && audio.seekable) {
             audio.seek(ms)
         } else {
@@ -124,6 +126,8 @@ Item {
         playing = false
         alarm.stop()
         audio.stop()
+        // After a stop or an error the file is loaded afresh.
+        loadedPath = ""
         index = -1
         clips = []
         chapter = -1
@@ -138,7 +142,8 @@ Item {
     function previous() {
         if (index < 0)
             return
-        var early = audio.position - clips[index].begin < 1500 * rate
+        var position = pendingSeek >= 0 ? pendingSeek : audio.position
+        var early = position - clips[index].begin < 1500 * rate
         jump(early && index > 0 ? index - 1 : index)
     }
 
@@ -169,18 +174,26 @@ Item {
     // Storyteller leaves no gaps; small ones of other tools are played,
     // larger ones hold audio without text and are skipped.
     function follows(a, b) {
-        return a.audio === b.audio && a.end !== null
+        return a.audio === b.audio && hasEnd(a)
                 && b.begin >= a.end && b.begin - a.end <= 500
+    }
+
+    // Python's None may arrive as null or as undefined.
+    function hasEnd(clip) {
+        return typeof clip.end === "number"
     }
 
     function arm() {
         alarm.stop()
         if (!playing || index < 0 || pendingSeek >= 0 || waiting)
             return
-        var target = nextMark < marks.length ? marks[nextMark] : clips[index].end
-        if (target === null)
+        var target = nextMark < marks.length ? marks[nextMark]
+                                             : hasEnd(clips[index]) ? clips[index].end : -1
+        if (target < 0)
             return  // the end of the file ends the clip
-        alarm.interval = Math.max(10, (target - audio.position) / audio.playbackRate)
+        // At most a second: right after a seek the position may still be
+        // the old one; check() sets the alarm again if it rings early.
+        alarm.interval = Math.max(10, Math.min(1000, (target - audio.position) / audio.playbackRate))
         alarm.start()
     }
 
@@ -190,7 +203,7 @@ Item {
             if (pos >= marks[nextMark] - 15)
                 marked(nextMark++)
             arm()
-        } else if (clips[index].end !== null && pos >= clips[index].end - 15) {
+        } else if (hasEnd(clips[index]) && pos >= clips[index].end - 15) {
             advance()
         } else {
             arm()

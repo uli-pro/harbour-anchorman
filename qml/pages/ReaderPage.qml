@@ -50,6 +50,10 @@ WebViewPage {
     property string resumeId: ""
     readonly property bool listening: player.active && player.chapter === chapter
     readonly property bool playing: player.playing
+    property double savedAt: 0
+    // Left for the library: the page is going, and must neither lay out
+    // nor save again (it would save the top of the page over the sentence).
+    property bool closed: false
 
     // Turning pages needs the horizontal swipe; the library is in the pulley.
     backNavigation: false
@@ -141,8 +145,9 @@ WebViewPage {
             activeColor: cssColor(Theme.highlightBackgroundColor, 0.3),
             margin: 24,
             marginTop: 4,
+            marginBottom: 12,
             // The bar must not cover the text read along.
-            marginBottom: 12 + (barShown ? bar.height : 0),
+            barHeight: barShown ? bar.height : 0,
             fontSize: app.fontSize,
             lineHeight: 1.3,
             color: cssColor(Theme.primaryColor, 1),
@@ -153,12 +158,16 @@ WebViewPage {
     // Same chapter and sentence, new text size. While a layout is under way
     // the "page" message calls this again if the size has changed meanwhile.
     function relayout() {
-        if (!ready)
+        if (!ready || closed)
             return
         serial++
         ready = false
         covered = true
         charsPerPage = 0
+        // Page numbers of the old layout no longer fit.
+        splits = []
+        if (listening)
+            player.setMarks([])
         layout({ keep: true, id: firstId, fraction: fraction })
     }
 
@@ -258,7 +267,7 @@ WebViewPage {
                 return
             splits = data.splits
             var clip = player.clips[player.index]
-            if (clip.end !== null) {
+            if (player.hasEnd(clip)) {
                 player.setMarks(splits.map(function (split) {
                     return clip.begin + split.share * (clip.end - clip.begin)
                 }))
@@ -316,6 +325,12 @@ WebViewPage {
 
     // The player first, then the bar: showing the bar lays the chapter out
     // again, around the sentence the player has just begun.
+    function stopPlayer() {
+        player.stop()
+        barShown = false
+        highlightId = ""
+    }
+
     function startPlayer(index, clips, i, offset) {
         resumeId = ""
         player.start(index, clips, i, offset)
@@ -362,9 +377,13 @@ WebViewPage {
         splits = []
         if (index !== chapter && index !== requested)
             loadChapter(index, { id: highlightId })
-        else if (index === chapter && ready)
+        else if (index === chapter)
+            // Also during a layout: the frame script takes messages in order,
+            // and ignores this one if a new chapter is still loading.
             flickable.webView.sendAsyncMessage("anchorman:highlight", { id: highlightId })
-        // Otherwise the chapter is being laid out and marks the sentence then.
+        // Pages change rarely while listening; save now and then.
+        if (Date.now() - savedAt > 20000)
+            savePosition()
         if (!upcoming || upcoming.after !== index) {
             upcoming = { after: index, chapter: -2 }
             fetchAudioChapter(index, function (next, clips) {
@@ -381,9 +400,8 @@ WebViewPage {
                 || upcoming.chapter === -2)
             return
         if (upcoming.chapter < 0) {
-            player.stop()  // end of the book
-            barShown = false
             savePosition()
+            stopPlayer()  // end of the book
         } else {
             player.continueWith(upcoming.chapter, upcoming.clips)
         }
@@ -403,14 +421,21 @@ WebViewPage {
         // Paused and turning pages: reading, not listening.
         if (player.active && !player.playing)
             barShown = false
+        resumeId = ""
         flickable.webView.sendAsyncMessage("anchorman:turn", { delta: delta })
     }
 
     function savePosition() {
-        var heard = listening && player.currentId !== ""
+        if (chapter < 0 || closed)
+            return
+        savedAt = Date.now()
+        // The sentence heard, unless the reader paused and turned away; or
+        // the one heard before the book was closed, until pages are turned.
+        var heardId = listening && (player.playing || barShown) ? player.currentId
+                    : !player.active ? resumeId : ""
         py.call("anchorman.bridge.save_position",
-                [app.positionsFile, book.key, { spine: chapter, id: heard ? player.currentId : firstId,
-                                                fraction: fraction, heard: heard }],
+                [app.positionsFile, book.key, { spine: chapter, id: heardId || firstId,
+                                                fraction: fraction, heard: heardId !== "" }],
                 function (result) {
                     if (result !== true)
                         console.warn("Cannot save position", result.error, result.detail)
@@ -423,6 +448,15 @@ WebViewPage {
     }
 
     onBarShownChanged: relayout()
+
+    // Closing the app gives no further chance to save.
+    Connections {
+        target: Qt.application
+        onStateChanged: {
+            if (Qt.application.state !== Qt.ApplicationActive)
+                page.savePosition()
+        }
+    }
 
     Component.onCompleted: app.reader = page
     Component.onDestruction: {
@@ -442,7 +476,7 @@ WebViewPage {
                 flickable.webView.sendAsyncMessage("anchorman:show", { page: page.splits[n].page })
         }
         onFailed: {
-            page.barShown = false
+            page.stopPlayer()
             app.showError(qsTr("The narration could not be played."))
         }
     }
@@ -524,7 +558,9 @@ WebViewPage {
             MenuItem {
                 text: qsTr("Library")
                 onClicked: {
-                    player.stop()
+                    savePosition()
+                    closed = true
+                    stopPlayer()
                     pageStack.pop()
                 }
             }
@@ -534,6 +570,7 @@ WebViewPage {
                     var toc = pageStack.push(Qt.resolvedUrl("TocPage.qml"),
                                              { toc: book.toc, currentChapter: chapter })
                     toc.selected.connect(function (index, fragment) {
+                        resumeId = ""
                         // A jump away from the sentence spoken: listening
                         // would pull the page back at once.
                         if (player.playing) {
@@ -620,6 +657,11 @@ WebViewPage {
         height: Theme.itemSizeMedium
         color: pageColor
         visible: barShown
+
+        // Taps beside the buttons must not reach the page below.
+        MouseArea {
+            anchors.fill: parent
+        }
 
         Row {
             anchors.centerIn: parent

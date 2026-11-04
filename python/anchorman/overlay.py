@@ -22,6 +22,7 @@ _CLOCK = re.compile(r"^(?:([0-9]{1,6}):)?([0-5][0-9]):"
                     r"([0-5][0-9](?:\.[0-9]{1,9})?)$")
 _TIMECOUNT = re.compile(r"^([0-9]{1,9}(?:\.[0-9]{1,9})?)(h|min|s|ms)?$")
 _UNIT_MS = {"h": 3600000, "min": 60000, "s": 1000, "ms": 1, None: 1000}
+MAX_TIME = 2 ** 31 - 1
 
 
 def parse_clock(text):
@@ -86,6 +87,9 @@ def _read_par(par, smil_path):
     except ValueError:
         return None
     if end is not None and end <= begin:
+        return None
+    # QML keeps times in 32-bit ints; nearly 600 hours is beyond any book.
+    if max(begin, end or 0) > MAX_TIME:
         return None
     return Fragment(target[0], target[1], sound[0], begin, end)
 

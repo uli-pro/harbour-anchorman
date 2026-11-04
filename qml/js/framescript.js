@@ -58,8 +58,11 @@ addMessageListener("anchorman:layout", function (message) {
         style = doc.createElement("style")
         ;(doc.head || doc.documentElement).appendChild(style)
     }
-    // QML gives the text size in screen pixels, CSS counts device-independent ones.
-    var fontSize = o.fontSize / (content.devicePixelRatio || 1)
+    // QML gives the text size and the bar in screen pixels, CSS counts
+    // device-independent ones.
+    var dpr = content.devicePixelRatio || 1
+    var fontSize = o.fontSize / dpr
+    var marginBottom = o.marginBottom + o.barHeight / dpr
     // Everything is !important: the book's CSS must neither break the pages
     // nor override the basic settings. Pages are CSS columns of one screen width
     // each: a column of width - 2 * margin plus a gap of 2 * margin, so every
@@ -67,7 +70,7 @@ addMessageListener("anchorman:layout", function (message) {
     style.textContent = important(
         "html { height: 100%; margin: 0; padding: 0; overflow: hidden; background: " + o.background + "; }" +
         "html body { margin: 0; height: 100vh; box-sizing: border-box; overflow: hidden;" +
-        "  padding: " + o.marginTop + "px " + margin + "px " + o.marginBottom + "px;" +
+        "  padding: " + o.marginTop + "px " + margin + "px " + marginBottom + "px;" +
         "  column-width: " + (width - 2 * margin) + "px; column-gap: " + (2 * margin) + "px; column-fill: auto;" +
         "  color: " + o.color + "; background: " + o.background + ";" +
         "  font-size: " + fontSize + "px; line-height: " + o.lineHeight + ";" +
@@ -109,8 +112,13 @@ addMessageListener("anchorman:layout", function (message) {
         active: active
     }
     go(target)
-    if (o.highlight)
+    if (o.highlight) {
         highlight(o.highlight)
+    } else if (state.active) {
+        // Playback has stopped.
+        state.active.classList.remove("anchorman-active")
+        state.active = null
+    }
     awaitPaint(o.serial)
 })
 

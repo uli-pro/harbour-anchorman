@@ -75,9 +75,11 @@ class ReadOverlayTest(TempDirTestCase):
             + par("../c1.xhtml#empty", "../a.mp3", "3s", "3s")
             + par("../c1.xhtml#backwards", "../a.mp3", "4s", "3.5s")
             + '<par><text src="../c1.xhtml#no-src"/><audio/></par>'
-            + par("../c1.xhtml#ok2", "../a.mp3", "4s", "5s"))
+            + par("../c1.xhtml#ok2", "../a.mp3", "4s", "5s")
+            + par("../c1.xhtml#huge", "../a.mp3", "999999999s", "1000000000s")
+            + par("../c1.xhtml#huge-end", "../a.mp3", "5s", "999999999s"))
         self.assertEqual([f.text_id for f in overlay.fragments], ["ok", "ok2"])
-        self.assertEqual(overlay.skipped, 7)
+        self.assertEqual(overlay.skipped, 9)
 
     def test_open_clip(self):
         overlay = self.overlay(par("../c1.xhtml#a", "../a.mp3"))
