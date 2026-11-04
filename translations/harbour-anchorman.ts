@@ -13,23 +13,58 @@
 <context>
     <name>LibraryPage</name>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="63"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="82"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="156"/>
+        <source>Book folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/LibraryPage.qml" line="90"/>
+        <source>All folders</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/LibraryPage.qml" line="97"/>
+        <source>Refresh</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/LibraryPage.qml" line="103"/>
         <source>Library</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="81"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="105"/>
+        <source>Documents and memory cards</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/LibraryPage.qml" line="124"/>
+        <source>SD card</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/LibraryPage.qml" line="124"/>
+        <source>Device</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/LibraryPage.qml" line="135"/>
         <source>No books</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="83"/>
-        <source>Copy EPUB readalouds to %1</source>
-        <extracomment>%1 is a folder name</extracomment>
+        <location filename="../qml/pages/LibraryPage.qml" line="136"/>
+        <source>Copy EPUB readalouds with narration to Documents or a memory card, or choose another book folder in the pulley menu</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="91"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="149"/>
+        <source>Searching for books</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/LibraryPage.qml" line="144"/>
         <source>Opening book</source>
         <translation type="unfinished"></translation>
     </message>
@@ -127,37 +162,37 @@
 <context>
     <name>harbour-anchorman</name>
     <message>
-        <location filename="../qml/harbour-anchorman.qml" line="42"/>
+        <location filename="../qml/harbour-anchorman.qml" line="47"/>
         <source>This file is not an EPUB book.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-anchorman.qml" line="45"/>
+        <location filename="../qml/harbour-anchorman.qml" line="50"/>
         <source>This book is too large or damaged.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-anchorman.qml" line="47"/>
+        <location filename="../qml/harbour-anchorman.qml" line="52"/>
         <source>Not enough free space to open this book.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-anchorman.qml" line="49"/>
+        <location filename="../qml/harbour-anchorman.qml" line="54"/>
         <source>This book contains unsafe file names and was not opened.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-anchorman.qml" line="51"/>
+        <location filename="../qml/harbour-anchorman.qml" line="56"/>
         <source>The book could not be read.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-anchorman.qml" line="53"/>
+        <location filename="../qml/harbour-anchorman.qml" line="58"/>
         <source>This book is damaged.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-anchorman.qml" line="95"/>
+        <location filename="../qml/harbour-anchorman.qml" line="106"/>
         <source>Internal error. Please report it with the log.</source>
         <translation type="unfinished"></translation>
     </message>
