@@ -44,8 +44,16 @@ addMessageListener("anchorman:layout", function (message) {
     var doc = content.document
     var width = content.innerWidth
     var margin = o.margin
-    // Laid out again (e.g. new text size): replace our style, keep the page.
+    var target = o.target
+    // Laid out again (new text size): replace our style and stay with the
+    // sentence at the top of the page, even if it began on the page before.
+    // The first sentence starting on the page would drift forward.
     var style = current() ? state.style : null
+    if (style && target.keep) {
+        var top = firstSentenceOn(currentPage())
+        if (top)
+            target = { id: top, fraction: target.fraction }
+    }
     if (!style) {
         style = doc.createElement("style")
         ;(doc.head || doc.documentElement).appendChild(style)
@@ -91,7 +99,8 @@ addMessageListener("anchorman:layout", function (message) {
         width: width,
         sentences: sentences
     }
-    go(o.target)
+    go(target)
+    awaitPaint(o.serial)
 })
 
 function important(css) {
@@ -110,6 +119,30 @@ function unjustify(doc) {
     }
     for (var j = 0; j < justified.length; ++j)
         justified[j].style.setProperty("text-align", "start", "important")
+}
+
+// After a layout QML covers the view until Gecko has painted it; the layout
+// itself is reported before the paint. A paint of the unstyled page may
+// still be under way and report afterwards, so only paints of a later
+// transaction than the one current at the layout count.
+var paintSerial = -1
+var paintAfter = -1
+addEventListener("MozAfterPaint", function (event) {
+    if (paintSerial < 0)
+        return
+    if (paintAfter >= 0 && !(event.transactionId > paintAfter))
+        return
+    sendAsyncMessage("anchorman:painted", { serial: paintSerial })
+    paintSerial = -1
+}, true)
+
+function awaitPaint(serial) {
+    try {
+        paintAfter = content.windowUtils.lastTransactionId
+    } catch (e) {
+        paintAfter = -1
+    }
+    paintSerial = serial
 }
 
 addMessageListener("anchorman:goto", function (message) {
@@ -136,7 +169,8 @@ function currentPage() {
     return Math.round(state.scroller.scrollLeft / state.width)
 }
 
-// target: { id, fraction } (either may be missing) or { end: true }.
+// target: { id, fraction } (either may be missing) or { end: true }; keep
+// is only read by the layout.
 function go(target) {
     var el = target.id ? state.doc.getElementById(target.id) : null
     if (el)
@@ -176,6 +210,20 @@ function pageOfBox(rect) {
 function pageOf(el) {
     var first = boxes(el)[0] || el.getBoundingClientRect()
     return pageOfBox(first)
+}
+
+// The topmost sentence visible on the page, also if it is cut off at the top.
+function firstSentenceOn(page) {
+    for (var i = 0; i < state.sentences.length; ++i) {
+        var rects = boxes(state.sentences[i])
+        if (rects.length === 0)
+            continue
+        if (pageOfBox(rects[0]) > page)
+            return ""
+        if (pageOfBox(rects[rects.length - 1]) >= page)
+            return state.sentences[i].id
+    }
+    return ""
 }
 
 // The first sentence that starts on the page. It brings back exactly this

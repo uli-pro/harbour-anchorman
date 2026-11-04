@@ -37,29 +37,29 @@
 <context>
     <name>ReaderPage</name>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="253"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="287"/>
         <source>Chapter %1/%2</source>
         <extracomment>Chapter in the book, e.g. &quot;Chapter 3/12&quot;</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="268"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="303"/>
         <source>Page %1/%2</source>
         <extracomment>Estimated page in the whole book, e.g. &quot;Page 30/295&quot;</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="292"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="327"/>
         <source>Text size</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="296"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="331"/>
         <source>Library</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="300"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="335"/>
         <source>Contents</source>
         <translation type="unfinished"></translation>
     </message>
@@ -67,18 +67,18 @@
 <context>
     <name>TextSizePage</name>
     <message>
-        <location filename="../qml/pages/TextSizePage.qml" line="14"/>
+        <location filename="../qml/pages/TextSizePage.qml" line="20"/>
         <source>Text size</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/TextSizePage.qml" line="26"/>
+        <location filename="../qml/pages/TextSizePage.qml" line="32"/>
         <source>Pixels</source>
         <extracomment>Unit of the text size slider: pixels on the screen</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/TextSizePage.qml" line="36"/>
+        <location filename="../qml/pages/TextSizePage.qml" line="41"/>
         <source>High above the city, on a tall column, stood the statue of the Happy Prince.</source>
         <extracomment>Sample text showing the chosen text size</extracomment>
         <translation type="unfinished"></translation>

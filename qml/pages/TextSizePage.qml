@@ -2,6 +2,12 @@ import QtQuick 2.0
 import Sailfish.Silica 1.0
 
 Page {
+    // Store once when leaving: the book is laid out again only then.
+    onStatusChanged: {
+        if (status === PageStatus.Deactivating)
+            app.setFontSize(slider.value)
+    }
+
     SilicaFlickable {
         anchors.fill: parent
         contentHeight: column.height
@@ -24,7 +30,6 @@ Page {
                 valueText: value
                 //: Unit of the text size slider: pixels on the screen
                 label: qsTr("Pixels")
-                onReleased: app.setFontSize(value)
             }
 
             Label {
