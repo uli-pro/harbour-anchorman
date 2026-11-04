@@ -24,6 +24,20 @@ Page {
         color: Theme.highlightColor
     }
 
+    Label {
+        id: hello
+        anchors {
+            top: info.bottom
+            left: parent.left
+            right: parent.right
+            leftMargin: Theme.horizontalPageMargin
+            rightMargin: Theme.horizontalPageMargin
+        }
+        wrapMode: Text.Wrap
+        color: Theme.highlightColor
+        text: qsTr("Hello, reader!")
+    }
+
     Python {
         Component.onCompleted: {
             addImportPath(Qt.resolvedUrl("../../python"))

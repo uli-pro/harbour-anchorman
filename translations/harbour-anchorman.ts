@@ -18,5 +18,10 @@
         <extracomment>Application name, usually not translated</extracomment>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <location filename="../qml/pages/MainPage.qml" line="38"/>
+        <source>Hello, reader!</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 </TS>
