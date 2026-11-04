@@ -29,8 +29,15 @@ class BridgeTest(TempDirTestCase):
         make_epub(self.epub, mini_entries())
 
     def test_list_books(self):
+        # Only readalouds: the mini book has a SMIL file, the other none.
+        write_files(self.tmp, {"plain.epub": "not a zip"})
         self.assertEqual(bridge.list_books([self.tmp]),
-                         [{"path": self.epub, "name": "happy-prince"}])
+                         [{"path": self.epub, "name": "happy-prince", "removable": False}])
+
+    def test_default_folders(self):
+        folders = bridge.default_folders("/home/user/Documents")
+        self.assertEqual(folders[0], "/home/user/Documents")
+        self.assertTrue(all(f.startswith("/run/media/") for f in folders[1:]))
 
     def test_open_book(self):
         book = bridge.open_book(self.epub, self.cache_dir)
