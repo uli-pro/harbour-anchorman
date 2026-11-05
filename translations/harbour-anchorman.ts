@@ -10,39 +10,39 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/AuthorPage.qml" line="27"/>
+        <location filename="../qml/pages/AuthorPage.qml" line="33"/>
         <source>with %1</source>
         <extracomment>Further authors of a book, e.g. &quot;with Andrew Child&quot;</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/AuthorPage.qml" line="30"/>
+        <location filename="../qml/pages/AuthorPage.qml" line="27"/>
         <source>Cannot be opened</source>
         <extracomment>The book is damaged or protected by DRM</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/AuthorPage.qml" line="32"/>
+        <location filename="../qml/pages/AuthorPage.qml" line="29"/>
         <source>SD card</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/AuthorPage.qml" line="32"/>
+        <location filename="../qml/pages/AuthorPage.qml" line="29"/>
         <source>Device</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/AuthorPage.qml" line="45"/>
+        <location filename="../qml/pages/AuthorPage.qml" line="46"/>
         <source>Unknown author</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/AuthorPage.qml" line="50"/>
+        <location filename="../qml/pages/AuthorPage.qml" line="51"/>
         <source>Other books</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/AuthorPage.qml" line="64"/>
+        <location filename="../qml/pages/AuthorPage.qml" line="65"/>
         <source>Opening book</source>
         <translation type="unfinished"></translation>
     </message>

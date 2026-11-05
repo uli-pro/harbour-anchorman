@@ -41,9 +41,12 @@ ListItem {
         }
 
         Row {
+            width: parent.width
             spacing: Theme.paddingSmall
 
             Icon {
+                id: audioIcon
+
                 visible: item.book && item.book.audio
                 width: Theme.iconSizeExtraSmall
                 height: width
@@ -54,7 +57,9 @@ ListItem {
             }
 
             Label {
+                width: parent.width - (audioIcon.visible ? audioIcon.width + parent.spacing : 0)
                 text: item.detail
+                truncationMode: TruncationMode.Fade
                 font.pixelSize: Theme.fontSizeExtraSmall
                 color: item.highlighted ? Theme.secondaryHighlightColor : Theme.secondaryColor
             }

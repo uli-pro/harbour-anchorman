@@ -210,10 +210,16 @@ def fold(text):
     return "".join(c for c in text if not unicodedata.combining(c)).casefold()
 
 
+_SUFFIXES = {"jr.", "jr", "sr.", "sr", "ii", "iii", "iv"}
+
+
 def _natural(name):
-    """ "Child, Andrew" as "Andrew Child"; other forms stay."""
+    """ "Child, Andrew" as "Andrew Child"; other forms stay, also
+    "Sammy Davis, Jr."."""
     parts = name.split(", ")
-    return parts[1] + " " + parts[0] if len(parts) == 2 else name
+    if len(parts) != 2 or parts[1].casefold() in _SUFFIXES:
+        return name
+    return parts[1] + " " + parts[0]
 
 
 def _letter(sort):

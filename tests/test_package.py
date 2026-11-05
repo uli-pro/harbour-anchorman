@@ -398,7 +398,24 @@ class InfoTest(TempDirTestCase):
             '<dc:creator opf:file-as="Child, Andrew">Andrew Child</dc:creator>')
         self.assertEqual(info.sort, "Child, Lee")
         info = self.info('<dc:creator opf:file-as="Höcker, Anna &amp; Rist, Fred">Anna Höcker &amp; Fred Rist</dc:creator>')
-        self.assertEqual(info.sort, "Höcker, Anna &amp; Rist, Fred".replace("&amp;", "&"))
+        self.assertEqual(info.sort, "Höcker, Anna & Rist, Fred")
+        # A duo as one author, and a translator: not split.
+        info = self.info('<dc:creator opf:file-as="Preston &amp; Child">Preston &amp; Child</dc:creator>'
+                         '<dc:creator opf:role="trl">T. Ranslator</dc:creator>')
+        self.assertEqual((info.sort, info.authors), ("Preston & Child", ["Preston & Child"]))
+
+    def test_only_authors(self):
+        info = self.info('<dc:creator opf:role="aut">Arthur Conan Doyle</dc:creator>'
+                         '<dc:creator opf:role="trl">Eve Fritsche</dc:creator>'
+                         '<dc:creator opf:role="ill">Sidney Paget</dc:creator>'
+                         '<dc:creator opf:role="pbl">Verlag</dc:creator>'
+                         '<dc:creator opf:role="nrt">Ned Narrator</dc:creator>')
+        self.assertEqual(info.authors, ["Arthur Conan Doyle"])
+        self.assertEqual(self.info('<dc:creator opf:role="edt">Ed Itor</dc:creator>').authors, ["Ed Itor"])
+
+    def test_placeholder_sort_name(self):
+        info = self.info('<dc:creator opf:file-as="Unbekannt">Jussi Adler-Olsen</dc:creator>')
+        self.assertEqual(info.sort, "Jussi Adler-Olsen")
 
     def test_sort_falls_back_to_name(self):
         self.assertEqual(self.info('<dc:creator>Ann Author</dc:creator>').sort, "Ann Author")
