@@ -22,6 +22,7 @@ WebViewPage {
     property bool covered: true
     property int laidOutFontSize: 0
     property bool laidOutBar: false
+    property bool laidOutLight: false
     property int pageIndex: 0
     property int pageCount: 0
     property string firstId: ""
@@ -138,6 +139,10 @@ WebViewPage {
     function layout(target) {
         laidOutFontSize = app.fontSize
         laidOutBar = barShown
+        // From lightPage itself: the palette and pageColor may still hold
+        // the old colours while lightPage changes (seen on the device).
+        var light = lightPage
+        laidOutLight = light
         // While listening the page shows the sentence spoken; paused, it
         // stays where the reader is.
         if (listening && player.playing && highlightId)
@@ -147,7 +152,8 @@ WebViewPage {
             ids: sentenceIds,
             target: target,
             highlight: listening ? highlightId : "",
-            activeColor: cssColor(palette.highlightBackgroundColor, 0.3),
+            // The ambience's colour; the light palette gives the same.
+            activeColor: cssColor(Theme.highlightBackgroundColor, 0.3),
             margin: 24,
             marginTop: 4,
             marginBottom: 12,
@@ -155,8 +161,8 @@ WebViewPage {
             barHeight: barShown ? bar.height : 0,
             fontSize: app.fontSize,
             lineHeight: 1.3,
-            color: cssColor(palette.primaryColor, 1),
-            background: cssColor(pageColor, 1)
+            color: light ? "black" : "white",
+            background: light ? "white" : "black"
         })
     }
 
@@ -250,7 +256,8 @@ WebViewPage {
             fraction = data.fraction
             updateBookPages()
             savePosition()
-            if (laidOutFontSize !== app.fontSize || laidOutBar !== barShown)
+            if (laidOutFontSize !== app.fontSize || laidOutBar !== barShown
+                    || laidOutLight !== lightPage)
                 relayout()
             break
         case "anchorman:painted":
@@ -483,9 +490,7 @@ WebViewPage {
     }
 
     onBarShownChanged: relayout()
-    // The palette and pageColor still have the old colours here (seen on the
-    // device); lay out once they are updated.
-    onLightPageChanged: colorsTimer.restart()
+    onLightPageChanged: relayout()
 
     // Silica items inside take their colours from this palette.
     palette.colorScheme: lightPage ? Theme.DarkOnLight : Theme.LightOnDark
@@ -627,7 +632,8 @@ WebViewPage {
             }
             MenuItem {
                 text: lightPage ? qsTr("Dark page") : qsTr("Light page")
-                onClicked: app.setPageColors(lightPage ? "dark" : "light")
+                // After the pulley has closed: the new layout covers the page.
+                onDelayedClick: app.setPageColors(lightPage ? "dark" : "light")
             }
             MenuItem {
                 visible: !barShown
@@ -750,12 +756,6 @@ WebViewPage {
         anchors.fill: flickable
         color: pageColor
         visible: covered
-    }
-
-    Timer {
-        id: colorsTimer
-        interval: 0
-        onTriggered: relayout()
     }
 
     Timer {

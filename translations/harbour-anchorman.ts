@@ -72,55 +72,55 @@
 <context>
     <name>ReaderPage</name>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="521"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="526"/>
         <source>The narration could not be played.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="556"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="561"/>
         <source>Chapter %1/%2</source>
         <extracomment>Chapter in the book, e.g. &quot;Chapter 3/12&quot;</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="572"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="577"/>
         <source>Page %1/%2</source>
         <extracomment>Estimated page in the whole book, e.g. &quot;Page 30/295&quot;</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="596"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="601"/>
         <source>Settings</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="629"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="634"/>
         <source>Dark page</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="629"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="634"/>
         <source>Light page</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="634"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="640"/>
         <source>Play</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="740"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="746"/>
         <source>%1×</source>
         <extracomment>Playback speed on the button that opens the settings, e.g. &quot;1.25×&quot;</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="600"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="605"/>
         <source>Library</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="609"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="614"/>
         <source>Contents</source>
         <translation type="unfinished"></translation>
     </message>
