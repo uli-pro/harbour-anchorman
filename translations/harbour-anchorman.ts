@@ -53,71 +53,71 @@
 <context>
     <name>LibraryPage</name>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="186"/>
-        <location filename="../qml/pages/LibraryPage.qml" line="325"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="189"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="328"/>
         <source>Book folder</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="194"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="197"/>
         <source>All folders</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="198"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="201"/>
         <source>Refresh</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="207"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="210"/>
         <source>Library</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="209"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="212"/>
         <source>Documents and memory cards</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="215"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="218"/>
         <source>Author, title or series</source>
         <extracomment>Search field of the library</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="227"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="230"/>
         <source>Continue reading</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="244"/>
-        <location filename="../qml/pages/LibraryPage.qml" line="264"/>
-        <location filename="../qml/pages/LibraryPage.qml" line="289"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="247"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="267"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="292"/>
         <source>Unknown author</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="296"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="299"/>
         <source>Nothing found</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="298"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="301"/>
         <source>Copy EPUB books to Documents or a memory card, or choose another book folder in the pulley menu</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="296"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="299"/>
         <source>No books</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="318"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="321"/>
         <source>Searching for books</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="313"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="316"/>
         <source>Opening book</source>
         <translation type="unfinished"></translation>
     </message>

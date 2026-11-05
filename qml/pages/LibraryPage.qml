@@ -178,6 +178,9 @@ Page {
         opacity: opening ? 0.3 : 1
         enabled: !opening
         model: ListModel { id: rows }
+        // Otherwise the current item takes the focus from the search field
+        // whenever the rows change.
+        currentIndex: -1
 
         PullDownMenu {
             busy: scanning
