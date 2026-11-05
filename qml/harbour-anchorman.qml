@@ -25,11 +25,17 @@ ApplicationWindow {
     readonly property real maxPlaybackRate: 2.5
     readonly property real playbackRate: Math.max(minPlaybackRate, Math.min(maxPlaybackRate,
                                                   Number(playbackRateSetting.value) || 1))
+    // "light" or "dark" once chosen; "" follows the ambience.
+    readonly property string pageColors: pageColorsSetting.value || ""
     // The open ReaderPage, for the cover's play button.
     property var reader: null
 
     function setLibraryFolder(folder) {
         libraryFolderSetting.value = folder
+    }
+
+    function setPageColors(colors) {
+        pageColorsSetting.value = colors
     }
 
     function setFontSize(size) {
@@ -83,6 +89,12 @@ ApplicationWindow {
     ConfigurationValue {
         id: libraryFolderSetting
         key: "/apps/harbour-anchorman/libraryFolder"
+        defaultValue: ""
+    }
+
+    ConfigurationValue {
+        id: pageColorsSetting
+        key: "/apps/harbour-anchorman/pageColors"
         defaultValue: ""
     }
 
