@@ -67,8 +67,16 @@ addMessageListener("anchorman:layout", function (message) {
     // nor override the basic settings. Pages are CSS columns of one screen width
     // each: a column of width - 2 * margin plus a gap of 2 * margin, so every
     // page starts exactly one screen width further right.
-    style.textContent = important(
-        "html { height: 100%; margin: 0; padding: 0; overflow: hidden; background: " + o.background + "; }" +
+    // Our font rules apply to XHTML elements only (h|*): MathML and SVG keep
+    // theirs. The namespace rule must come first and takes no !important.
+    style.textContent = "@namespace h url(" + xhtml + ");" +
+        "@namespace m url(http://www.w3.org/1998/Math/MathML);" +
+        // Formulas keep a math font, if Gecko has one (not important: a
+        // book's own math font wins).
+        "body m|math { font-family: math; }" + important(
+        // On html too: sizes in rem refer to it.
+        "html { height: 100%; margin: 0; padding: 0; overflow: hidden; background: " + o.background + ";" +
+        "  font-size: " + fontSize + "px; }" +
         "html body { margin: 0; height: 100vh; box-sizing: border-box; overflow: hidden;" +
         "  padding: " + o.marginTop + "px " + margin + "px " + marginBottom + "px;" +
         "  column-width: " + (width - 2 * margin) + "px; column-gap: " + (2 * margin) + "px; column-fill: auto;" +
@@ -79,6 +87,11 @@ addMessageListener("anchorman:layout", function (message) {
         // come from the app, relative sizes, indents and spacing of the
         // book build on them. A unitless line height scales with each font.
         "body * { line-height: inherit; }" +
+        // The app's font, not the book's; code stays monospaced. The book's
+        // own fonts follow the app's, for characters it lacks (Greek, Hebrew).
+        "body, body h|* { font-family: " + o.fontFamily + bookFonts(doc) + "; }" +
+        "body h|pre, body h|pre h|*, body h|code, body h|code h|*, body h|kbd, body h|kbd h|*," +
+        "  body h|samp, body h|samp h|*, body h|tt, body h|tt h|* { font-family: monospace; }" +
         "body img, body svg { display: block; margin: 0 auto; max-width: 100%; max-height: 70vh;" +
         "  break-inside: avoid; }" +
         // Links cannot be followed, so they look like the text around them.
@@ -86,7 +99,7 @@ addMessageListener("anchorman:layout", function (message) {
         // Our own mark for the sentence spoken: the book's style for its
         // active class is made for white pages.
         "body .anchorman-active { background-color: " + o.activeColor + "; }")
-    unjustify(doc)
+    normalize(doc, o)
 
     var sentences = []
     var isSentence = {}
@@ -107,6 +120,10 @@ addMessageListener("anchorman:layout", function (message) {
         // scrolling the root four screen widths before its end.
         scroller: doc.body || doc.documentElement,
         width: width,
+        // The WebView enlarges text by itself (measured: 1.6); the settings
+        // page shows its sample at the size the reader sees. A page Gecko
+        // could not parse has no body.
+        textScale: doc.body ? parseFloat(content.getComputedStyle(doc.body).fontSize) / fontSize : 0,
         sentences: sentences,
         isSentence: isSentence,
         active: active
@@ -201,18 +218,180 @@ function important(css) {
     return css.replace(/;/g, " !important;")
 }
 
-// Justified text leaves wide gaps on a narrow screen. CSS cannot override
-// only "justify" and keep "center", so look at each element. All reads come
-// before all writes: mixing them would recompute the styles every time.
-function unjustify(doc) {
-    var elements = doc.body ? doc.body.getElementsByTagName("*") : []
+// Elements that may stay smaller than the text around them.
+var smallTags = { sub: true, sup: true, small: true, rt: true, rtc: true, rp: true }
+var xhtml = "http://www.w3.org/1999/xhtml"
+
+// The families of the book's @font-face rules, quoted, each after a comma.
+function bookFonts(doc) {
+    var names = []
+    try {
+        doc.fonts.forEach(function (face) {
+            var name = face.family.replace(/^["']|["']$/g, "").replace(/[\x00-\x1f\x7f"\\;]/g, "")
+            if (name && names.indexOf(name) < 0)
+                names.push(name)
+        })
+    } catch (e) {
+        return ""
+    }
+    return names.map(function (name) { return ', "' + name + '"' }).join("")
+}
+
+// Kept small on purpose: hidden (0), raised like a note mark, or small caps.
+function smallOnPurpose(style, size) {
+    return size === 0 || /^(super|sub|top|text-top)$/.test(style.verticalAlign)
+           || style.fontVariantCaps !== "normal"
+           || (style.textTransform === "uppercase" && style.display === "inline")
+}
+
+// Block elements: a div holding none of them is a paragraph.
+var blocks = "p, div, ul, ol, dl, table, blockquote, pre, section, article, aside, figure, " +
+             "header, footer, h1, h2, h3, h4, h5, h6, hr"
+
+// An empty paragraph, typically "<div> </div>" between paragraphs in
+// books converted from Kindle files, stands for a blank line, unless it
+// draws something: an ornament (::before), a background, a border.
+var drawn = "img, svg, hr, video, audio, object, iframe, table, math"
+
+function isBlankLine(element, style) {
+    if ((element.localName !== "div" && element.localName !== "p")
+            || element.textContent.trim() !== "" || element.querySelector(drawn)
+            || style.backgroundImage !== "none" || parseFloat(style.borderTopWidth) > 0
+            || parseFloat(style.borderBottomWidth) > 0)
+        return false
+    var before = content.getComputedStyle(element, "::before").content
+    var after = content.getComputedStyle(element, "::after").content
+    return (before === "none" || before === "normal") && (after === "none" || after === "normal")
+}
+
+// What normalize changed in the book's inline styles, to undo it before the
+// next layout: [element, property, old value, old priority].
+var overridden = []
+
+function override(element, property, value) {
+    overridden.push([element, property, element.style.getPropertyValue(property),
+                     element.style.getPropertyPriority(property)])
+    element.style.setProperty(property, value, "important")
+}
+
+function restore() {
+    // Backwards: an element changed twice gets its first value back.
+    for (var i = overridden.length - 1; i >= 0; --i) {
+        var o = overridden[i]
+        if (o[2])
+            o[0].style.setProperty(o[1], o[2], o[3])
+        else
+            o[0].style.removeProperty(o[1])
+    }
+    overridden = []
+}
+
+// Undo what CSS alone cannot, looking at each element:
+// - books shrink their text with relative sizes on paragraphs or wrappers
+//   (".calibre { font-size: 0.75em }"), which would scale the text size
+//   chosen in the app, while larger headings must stay: an element smaller
+//   than its parent gets 1em;
+// - paragraphs get the app's spacing, or an indent; many books build them
+//   from divs. A large space above one is a scene break and stays. A single
+//   blank line between them goes (it would add to the spacing chosen),
+//   several in a row stay: a scene break;
+// - justified text leaves wide gaps on a narrow screen, but "center" must
+//   stay, and a centred paragraph must not be pushed aside by the indent.
+// All reads come before all writes: mixing them would recompute the styles
+// every time. Only XHTML elements: MathML and SVG size their parts
+// themselves.
+function normalize(doc, o) {
+    // A new layout starts from the book's styles, so that it gives the same
+    // result as the first one.
+    try {
+        if (overridden.length > 0 && overridden[0][0].ownerDocument === doc)
+            restore()
+    } catch (e) {
+        // Elements of a chapter already closed.
+    }
+    overridden = []
+    if (!doc.body)
+        return
+    var elements = doc.body.getElementsByTagName("*")
     var justified = []
-    for (var i = 0; i < elements.length; ++i) {
-        if (content.getComputedStyle(elements[i]).textAlign === "justify")
-            justified.push(elements[i])
+    var centred = []
+    var paragraphs, blanks
+    // A wrapper made larger can leave a child of fixed size smaller than
+    // it; another look catches that. Paragraph margins are judged on the
+    // last look, with the sizes corrected.
+    for (var pass = 0; pass < 3; ++pass) {
+        var sizes = new Map([[doc.body, parseFloat(content.getComputedStyle(doc.body).fontSize)]])
+        var shrunk = []
+        paragraphs = []
+        blanks = new Map()
+        // Document order: a parent comes before its children.
+        for (var i = 0; i < elements.length; ++i) {
+            var element = elements[i]
+            if (element.namespaceURI !== xhtml)
+                continue
+            var style = content.getComputedStyle(element)
+            var size = parseFloat(style.fontSize)
+            sizes.set(element, size)
+            if (pass === 0) {
+                if (style.textAlign === "justify")
+                    justified.push(element)
+                else if (/center|right|end/.test(style.textAlign))
+                    centred.push(element)
+            }
+            if (isBlankLine(element, style)) {
+                // Only the outermost of nested blank lines counts. An empty
+                // anchor without a box is no line.
+                if (!blanks.has(element.parentElement))
+                    blanks.set(element, element.getClientRects().length > 0)
+            } else if (element.localName === "p" || (element.localName === "div"
+                    && !element.querySelector(blocks))) {
+                paragraphs.push({ element: element,
+                                  keepTop: parseFloat(style.marginTop) > 1.5 * size,
+                                  keepBottom: parseFloat(style.marginBottom) > 1.5 * size })
+            }
+            var parentSize = sizes.get(element.parentElement)
+            if (parentSize && size < parentSize * 0.9 && !smallTags[element.localName]
+                    && !smallOnPurpose(style, size))
+                shrunk.push(element)
+        }
+        if (shrunk.length === 0)
+            break
+        for (var k = 0; k < shrunk.length; ++k)
+            override(shrunk[k], "font-size", "1em")
+    }
+    var spacing = (o.paragraphSpacing * o.lineHeight) + "em"
+    var indent = o.paragraphSpacing > 0 ? "0" : "1em"
+    for (var p = 0; p < paragraphs.length; ++p) {
+        var paragraph = paragraphs[p]
+        if (!paragraph.keepTop)
+            override(paragraph.element, "margin-top", "0")
+        if (!paragraph.keepBottom)
+            override(paragraph.element, "margin-bottom", spacing)
+        override(paragraph.element, "text-indent", indent)
+    }
+    // Single blank lines between paragraphs go, runs stay: a scene break.
+    // Only in books that use them between paragraphs at all; a book with a
+    // few keeps them as its scene breaks.
+    var single = []
+    blanks.forEach(function (boxed, blank) {
+        var before = blank.previousElementSibling
+        var after = blank.nextElementSibling
+        if (boxed && !(before && blanks.get(before)) && !(after && blanks.get(after)))
+            single.push(blank)
+    })
+    if (single.length > 0.2 * paragraphs.length) {
+        for (var b = 0; b < single.length; ++b) {
+            // Folded, not hidden: an id on it may be the target of a link.
+            override(single[b], "font-size", "0")
+            override(single[b], "line-height", "0")
+            override(single[b], "margin-top", "0")
+            override(single[b], "margin-bottom", "0")
+        }
     }
     for (var j = 0; j < justified.length; ++j)
-        justified[j].style.setProperty("text-align", "start", "important")
+        override(justified[j], "text-align", "start")
+    for (var c = 0; c < centred.length; ++c)
+        override(centred[c], "text-indent", "0")
 }
 
 // After a layout QML covers the view until Gecko has painted it; the layout
@@ -285,7 +464,8 @@ function showPage(page) {
         page: page,
         pages: pages,
         firstId: firstSentenceStartingOn(page),
-        fraction: pages > 1 ? page / (pages - 1) : 0
+        fraction: pages > 1 ? page / (pages - 1) : 0,
+        textScale: state.textScale
     })
 }
 

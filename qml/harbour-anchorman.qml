@@ -27,6 +27,28 @@ ApplicationWindow {
     readonly property real maxPlaybackRate: 2.5
     readonly property real playbackRate: Math.max(minPlaybackRate, Math.min(maxPlaybackRate,
                                                   Number(playbackRateSetting.value) || 1))
+    readonly property real minLineHeight: 1.0
+    readonly property real maxLineHeight: 2.0
+    readonly property real lineHeight: settingValue(lineHeightSetting.value, 1.3,
+                                                    minLineHeight, maxLineHeight)
+    // Space after each paragraph, in lines; 0 indents the first lines instead.
+    readonly property real minParagraphSpacing: 0
+    readonly property real maxParagraphSpacing: 2.0
+    readonly property real paragraphSpacing: settingValue(paragraphSpacingSetting.value, 0.5,
+                                                          minParagraphSpacing, maxParagraphSpacing)
+    // How much larger the WebView shows text than the size asked for,
+    // measured by the reading page and kept for the next start.
+    readonly property real textScale: Number(textScaleSetting.value) > 0 ? Number(textScaleSetting.value) : 1.6
+
+    function setTextScale(scale) {
+        // Rounded: tiny differences between chapters need no write. A book
+        // forcing its own size measures nonsense.
+        scale = Math.round(scale * 1000) / 1000
+        if (scale >= 0.5 && scale <= 4 && scale !== textScale)
+            textScaleSetting.value = scale
+    }
+    // "sans" or "serif"; the book's own fonts are not used.
+    readonly property string fontFamily: fontFamilySetting.value === "serif" ? "serif" : "sans"
     // "light" or "dark" once chosen; "" follows the ambience.
     readonly property string pageColors: pageColorsSetting.value || ""
     // A cover taken out of a book by Python's cover thread; file is "" if
@@ -40,12 +62,32 @@ ApplicationWindow {
         libraryFolderSetting.value = folder
     }
 
+    function setFontFamily(family) {
+        fontFamilySetting.value = family
+    }
+
     function setPageColors(colors) {
         pageColorsSetting.value = colors
     }
 
     function setFontSize(size) {
         fontSizeSetting.value = size
+    }
+
+    // A stored number within [min, max]; 0 is a valid value.
+    function settingValue(value, fallback, min, max) {
+        var number = Number(value)
+        return isFinite(number) && value !== "" && value !== undefined && value !== null
+               ? Math.max(min, Math.min(max, number)) : fallback
+    }
+
+    // Slider steps of 0.05 are not exact in binary.
+    function setLineHeight(height) {
+        lineHeightSetting.value = Math.round(height * 100) / 100
+    }
+
+    function setParagraphSpacing(spacing) {
+        paragraphSpacingSetting.value = Math.round(spacing * 100) / 100
     }
 
     function setPlaybackRate(rate) {
@@ -101,9 +143,33 @@ ApplicationWindow {
     }
 
     ConfigurationValue {
+        id: fontFamilySetting
+        key: "/apps/harbour-anchorman/fontFamily"
+        defaultValue: "sans"
+    }
+
+    ConfigurationValue {
         id: pageColorsSetting
         key: "/apps/harbour-anchorman/pageColors"
         defaultValue: ""
+    }
+
+    ConfigurationValue {
+        id: lineHeightSetting
+        key: "/apps/harbour-anchorman/lineHeight"
+        defaultValue: 1.3
+    }
+
+    ConfigurationValue {
+        id: paragraphSpacingSetting
+        key: "/apps/harbour-anchorman/paragraphSpacing"
+        defaultValue: 0.5
+    }
+
+    ConfigurationValue {
+        id: textScaleSetting
+        key: "/apps/harbour-anchorman/textScale"
+        defaultValue: 0
     }
 
     ConfigurationValue {

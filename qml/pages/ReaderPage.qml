@@ -20,9 +20,9 @@ WebViewPage {
     property int serial: 0
     property bool ready: false
     property bool covered: true
-    property int laidOutFontSize: 0
-    property bool laidOutBar: false
-    property bool laidOutLight: false
+    // The settings of the last layout; another layout follows if they
+    // changed while one was under way.
+    property string laidOut: ""
     property int pageIndex: 0
     property int pageCount: 0
     property string firstId: ""
@@ -99,6 +99,9 @@ WebViewPage {
         serial++
         ready = false
         covered = true
+        // Timers of the layout before must not uncover the new chapter.
+        uncoverTimer.stop()
+        paintedTimer.stop()
         if (!item.overlay) {
             show(index, [], [], target)
             return
@@ -137,13 +140,16 @@ WebViewPage {
         }
     }
 
+    function layoutSettings() {
+        return [app.fontSize, app.fontFamily, app.lineHeight, app.paragraphSpacing,
+                barShown, lightPage].join("|")
+    }
+
     function layout(target) {
-        laidOutFontSize = app.fontSize
-        laidOutBar = barShown
+        laidOut = layoutSettings()
         // From lightPage itself: the palette and pageColor may still hold
         // the old colours while lightPage changes (seen on the device).
         var light = lightPage
-        laidOutLight = light
         // While listening the page shows the sentence spoken; paused, it
         // stays where the reader is.
         if (listening && player.playing && highlightId)
@@ -161,7 +167,9 @@ WebViewPage {
             // The bar must not cover the text read along.
             barHeight: barShown ? bar.height : 0,
             fontSize: app.fontSize,
-            lineHeight: 1.3,
+            fontFamily: app.fontFamily === "serif" ? "serif" : "sans-serif",
+            lineHeight: app.lineHeight,
+            paragraphSpacing: app.paragraphSpacing,
             color: light ? "black" : "white",
             background: light ? "white" : "black"
         })
@@ -175,6 +183,9 @@ WebViewPage {
         serial++
         ready = false
         covered = true
+        // Timers of the layout before must not uncover this one.
+        uncoverTimer.stop()
+        paintedTimer.stop()
         charsPerPage = 0
         // Page numbers of the old layout no longer fit.
         splits = []
@@ -248,6 +259,8 @@ WebViewPage {
         case "anchorman:page":
             if (data.serial !== serial)
                 return
+            if (data.textScale > 0)
+                app.setTextScale(data.textScale)
             ready = true
             if (covered && !uncoverTimer.running)
                 uncoverTimer.restart()
@@ -257,8 +270,7 @@ WebViewPage {
             fraction = data.fraction
             updateBookPages()
             savePosition()
-            if (laidOutFontSize !== app.fontSize || laidOutBar !== barShown
-                    || laidOutLight !== lightPage)
+            if (laidOut !== layoutSettings())
                 relayout()
             break
         case "anchorman:painted":
@@ -487,7 +499,11 @@ WebViewPage {
 
     Connections {
         target: app
-        onFontSizeChanged: page.relayout()
+        // Leaving the settings stores several at once: one layout for all.
+        onFontSizeChanged: settingsTimer.restart()
+        onFontFamilyChanged: settingsTimer.restart()
+        onLineHeightChanged: settingsTimer.restart()
+        onParagraphSpacingChanged: settingsTimer.restart()
     }
 
     onBarShownChanged: relayout()
@@ -599,10 +615,6 @@ WebViewPage {
             backgroundColor: pageColor
 
             MenuItem {
-                text: qsTr("Settings")
-                onClicked: pageStack.push(Qt.resolvedUrl("SettingsPage.qml"))
-            }
-            MenuItem {
                 text: qsTr("Library")
                 onClicked: {
                     savePosition()
@@ -610,6 +622,10 @@ WebViewPage {
                     stopPlayer()
                     pageStack.pop()
                 }
+            }
+            MenuItem {
+                text: qsTr("Settings")
+                onClicked: pageStack.push(Qt.resolvedUrl("SettingsPage.qml"))
             }
             MenuItem {
                 text: qsTr("Contents")
@@ -757,6 +773,12 @@ WebViewPage {
         anchors.fill: flickable
         color: pageColor
         visible: covered
+    }
+
+    Timer {
+        id: settingsTimer
+        interval: 0
+        onTriggered: page.relayout()
     }
 
     Timer {
