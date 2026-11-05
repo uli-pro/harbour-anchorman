@@ -99,6 +99,9 @@ WebViewPage {
         serial++
         ready = false
         covered = true
+        // Timers of the layout before must not uncover the new chapter.
+        uncoverTimer.stop()
+        paintedTimer.stop()
         if (!item.overlay) {
             show(index, [], [], target)
             return
@@ -180,8 +183,9 @@ WebViewPage {
         serial++
         ready = false
         covered = true
-        // The fallback of the layout before must not uncover this one.
+        // Timers of the layout before must not uncover this one.
         uncoverTimer.stop()
+        paintedTimer.stop()
         charsPerPage = 0
         // Page numbers of the old layout no longer fit.
         splits = []

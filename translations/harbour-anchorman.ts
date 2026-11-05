@@ -125,55 +125,55 @@
 <context>
     <name>ReaderPage</name>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="539"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="543"/>
         <source>The narration could not be played.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="574"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="578"/>
         <source>Chapter %1/%2</source>
         <extracomment>Chapter in the book, e.g. &quot;Chapter 3/12&quot;</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="590"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="594"/>
         <source>Page %1/%2</source>
         <extracomment>Estimated page in the whole book, e.g. &quot;Page 30/295&quot;</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="623"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="627"/>
         <source>Settings</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="647"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="651"/>
         <source>Dark page</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="647"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="651"/>
         <source>Light page</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="653"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="657"/>
         <source>Play</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="759"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="763"/>
         <source>%1×</source>
         <extracomment>Playback speed on the button that opens the settings, e.g. &quot;1.25×&quot;</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="614"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="618"/>
         <source>Library</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="627"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="631"/>
         <source>Contents</source>
         <translation type="unfinished"></translation>
     </message>
@@ -263,42 +263,42 @@
 <context>
     <name>harbour-anchorman</name>
     <message>
-        <location filename="../qml/harbour-anchorman.qml" line="101"/>
+        <location filename="../qml/harbour-anchorman.qml" line="102"/>
         <source>This file is not an EPUB book.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-anchorman.qml" line="104"/>
+        <location filename="../qml/harbour-anchorman.qml" line="105"/>
         <source>This book is too large or damaged.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-anchorman.qml" line="106"/>
+        <location filename="../qml/harbour-anchorman.qml" line="107"/>
         <source>Not enough free space to open this book.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-anchorman.qml" line="108"/>
+        <location filename="../qml/harbour-anchorman.qml" line="109"/>
         <source>This book contains unsafe file names and was not opened.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-anchorman.qml" line="110"/>
+        <location filename="../qml/harbour-anchorman.qml" line="111"/>
         <source>This book is protected by DRM and cannot be opened.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-anchorman.qml" line="112"/>
+        <location filename="../qml/harbour-anchorman.qml" line="113"/>
         <source>The book could not be read.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-anchorman.qml" line="114"/>
+        <location filename="../qml/harbour-anchorman.qml" line="115"/>
         <source>This book is damaged.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-anchorman.qml" line="195"/>
+        <location filename="../qml/harbour-anchorman.qml" line="196"/>
         <source>Internal error. Please report it with the log.</source>
         <translation type="unfinished"></translation>
     </message>

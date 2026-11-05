@@ -41,9 +41,10 @@ ApplicationWindow {
     readonly property real textScale: Number(textScaleSetting.value) > 0 ? Number(textScaleSetting.value) : 1.6
 
     function setTextScale(scale) {
-        // Rounded: tiny differences between chapters need no write.
+        // Rounded: tiny differences between chapters need no write. A book
+        // forcing its own size measures nonsense.
         scale = Math.round(scale * 1000) / 1000
-        if (scale !== textScale)
+        if (scale >= 0.5 && scale <= 4 && scale !== textScale)
             textScaleSetting.value = scale
     }
     // "sans" or "serif"; the book's own fonts are not used.

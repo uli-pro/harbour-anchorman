@@ -69,7 +69,11 @@ addMessageListener("anchorman:layout", function (message) {
     // page starts exactly one screen width further right.
     // Our font rules apply to XHTML elements only (h|*): MathML and SVG keep
     // theirs. The namespace rule must come first and takes no !important.
-    style.textContent = "@namespace h url(" + xhtml + ");" + important(
+    style.textContent = "@namespace h url(" + xhtml + ");" +
+        "@namespace m url(http://www.w3.org/1998/Math/MathML);" +
+        // Formulas keep a math font, if Gecko has one (not important: a
+        // book's own math font wins).
+        "body m|math { font-family: math; }" + important(
         // On html too: sizes in rem refer to it.
         "html { height: 100%; margin: 0; padding: 0; overflow: hidden; background: " + o.background + ";" +
         "  font-size: " + fontSize + "px; }" +
@@ -245,12 +249,19 @@ var blocks = "p, div, ul, ol, dl, table, blockquote, pre, section, article, asid
              "header, footer, h1, h2, h3, h4, h5, h6, hr"
 
 // An empty paragraph, typically "<div> </div>" between paragraphs in
-// books converted from Kindle files, stands for a blank line.
-var content_ = "img, svg, hr, video, audio, object, iframe, table, math"
+// books converted from Kindle files, stands for a blank line, unless it
+// draws something: an ornament (::before), a background, a border.
+var drawn = "img, svg, hr, video, audio, object, iframe, table, math"
 
-function isBlankLine(element) {
-    return (element.localName === "div" || element.localName === "p")
-           && element.textContent.trim() === "" && !element.querySelector(content_)
+function isBlankLine(element, style) {
+    if ((element.localName !== "div" && element.localName !== "p")
+            || element.textContent.trim() !== "" || element.querySelector(drawn)
+            || style.backgroundImage !== "none" || parseFloat(style.borderTopWidth) > 0
+            || parseFloat(style.borderBottomWidth) > 0)
+        return false
+    var before = content.getComputedStyle(element, "::before").content
+    var after = content.getComputedStyle(element, "::after").content
+    return (before === "none" || before === "normal") && (after === "none" || after === "normal")
 }
 
 // What normalize changed in the book's inline styles, to undo it before the
@@ -304,14 +315,15 @@ function normalize(doc, o) {
     var elements = doc.body.getElementsByTagName("*")
     var justified = []
     var centred = []
-    var paragraphs = []
-    var breaks = []
-    var blankLines = []
+    var paragraphs, blanks
     // A wrapper made larger can leave a child of fixed size smaller than
-    // it; a second look catches that.
+    // it; another look catches that. Paragraph margins are judged on the
+    // last look, with the sizes corrected.
     for (var pass = 0; pass < 3; ++pass) {
         var sizes = new Map([[doc.body, parseFloat(content.getComputedStyle(doc.body).fontSize)]])
         var shrunk = []
+        paragraphs = []
+        blanks = new Map()
         // Document order: a parent comes before its children.
         for (var i = 0; i < elements.length; ++i) {
             var element = elements[i]
@@ -325,43 +337,56 @@ function normalize(doc, o) {
                     justified.push(element)
                 else if (/center|right|end/.test(style.textAlign))
                     centred.push(element)
-                if (isBlankLine(element)) {
-                    blankLines.push(element)
-                } else if (element.localName === "p" || (element.localName === "div"
-                        && !element.querySelector(blocks))) {
-                    paragraphs.push(element)
-                    breaks.push(parseFloat(style.marginTop) > 1.5 * size)
-                }
+            }
+            if (isBlankLine(element, style)) {
+                // Only the outermost of nested blank lines counts. An empty
+                // anchor without a box is no line.
+                if (!blanks.has(element.parentElement))
+                    blanks.set(element, element.getClientRects().length > 0)
+            } else if (element.localName === "p" || (element.localName === "div"
+                    && !element.querySelector(blocks))) {
+                paragraphs.push({ element: element,
+                                  keepTop: parseFloat(style.marginTop) > 1.5 * size,
+                                  keepBottom: parseFloat(style.marginBottom) > 1.5 * size })
             }
             var parentSize = sizes.get(element.parentElement)
             if (parentSize && size < parentSize * 0.9 && !smallTags[element.localName]
                     && !smallOnPurpose(style, size))
                 shrunk.push(element)
         }
-        for (var k = 0; k < shrunk.length; ++k)
-            override(shrunk[k], "font-size", "1em")
         if (shrunk.length === 0)
             break
+        for (var k = 0; k < shrunk.length; ++k)
+            override(shrunk[k], "font-size", "1em")
     }
     var spacing = (o.paragraphSpacing * o.lineHeight) + "em"
     var indent = o.paragraphSpacing > 0 ? "0" : "1em"
     for (var p = 0; p < paragraphs.length; ++p) {
-        if (!breaks[p])
-            override(paragraphs[p], "margin-top", "0")
-        override(paragraphs[p], "margin-bottom", spacing)
-        override(paragraphs[p], "text-indent", indent)
+        var paragraph = paragraphs[p]
+        if (!paragraph.keepTop)
+            override(paragraph.element, "margin-top", "0")
+        if (!paragraph.keepBottom)
+            override(paragraph.element, "margin-bottom", spacing)
+        override(paragraph.element, "text-indent", indent)
     }
-    for (var b = 0; b < blankLines.length; ++b) {
-        var blank = blankLines[b]
+    // Single blank lines between paragraphs go, runs stay: a scene break.
+    // Only in books that use them between paragraphs at all; a book with a
+    // few keeps them as its scene breaks.
+    var single = []
+    blanks.forEach(function (boxed, blank) {
         var before = blank.previousElementSibling
         var after = blank.nextElementSibling
-        if ((before && isBlankLine(before)) || (after && isBlankLine(after)))
-            continue
-        // Folded, not hidden: an id on it may be the target of a link.
-        override(blank, "font-size", "0")
-        override(blank, "line-height", "0")
-        override(blank, "margin-top", "0")
-        override(blank, "margin-bottom", "0")
+        if (boxed && !(before && blanks.get(before)) && !(after && blanks.get(after)))
+            single.push(blank)
+    })
+    if (single.length > 0.2 * paragraphs.length) {
+        for (var b = 0; b < single.length; ++b) {
+            // Folded, not hidden: an id on it may be the target of a link.
+            override(single[b], "font-size", "0")
+            override(single[b], "line-height", "0")
+            override(single[b], "margin-top", "0")
+            override(single[b], "margin-bottom", "0")
+        }
     }
     for (var j = 0; j < justified.length; ++j)
         override(justified[j], "text-align", "start")
