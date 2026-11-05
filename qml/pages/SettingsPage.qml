@@ -8,6 +8,7 @@ Page {
         if (status === PageStatus.Deactivating) {
             app.setFontSize(fontSlider.value)
             app.setPlaybackRate(rateSlider.value)
+            app.setFontFamily(fontBox.currentIndex === 1 ? "serif" : "sans")
         }
     }
 
@@ -47,10 +48,22 @@ Page {
                 label: qsTr("Text size")
             }
 
+            ComboBox {
+                id: fontBox
+                width: parent.width
+                label: qsTr("Font")
+                currentIndex: app.fontFamily === "serif" ? 1 : 0
+                menu: ContextMenu {
+                    MenuItem { text: qsTr("Sans serif") }
+                    MenuItem { text: qsTr("Serif") }
+                }
+            }
+
             Label {
                 x: Theme.horizontalPageMargin
                 width: parent.width - 2 * x
                 wrapMode: Text.Wrap
+                font.family: fontBox.currentIndex === 1 ? "serif" : "sans-serif"
                 font.pixelSize: fontSlider.value
                 //: Sample text showing the chosen text size
                 text: qsTr("High above the city, on a tall column, stood the statue of the Happy Prince.")

@@ -161,6 +161,7 @@ WebViewPage {
             // The bar must not cover the text read along.
             barHeight: barShown ? bar.height : 0,
             fontSize: app.fontSize,
+            fontFamily: app.fontFamily === "serif" ? "serif" : "sans-serif",
             lineHeight: 1.3,
             color: light ? "black" : "white",
             background: light ? "white" : "black"
@@ -488,6 +489,7 @@ WebViewPage {
     Connections {
         target: app
         onFontSizeChanged: page.relayout()
+        onFontFamilyChanged: page.relayout()
     }
 
     onBarShownChanged: relayout()

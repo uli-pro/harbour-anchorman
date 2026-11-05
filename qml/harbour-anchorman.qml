@@ -27,6 +27,8 @@ ApplicationWindow {
     readonly property real maxPlaybackRate: 2.5
     readonly property real playbackRate: Math.max(minPlaybackRate, Math.min(maxPlaybackRate,
                                                   Number(playbackRateSetting.value) || 1))
+    // "sans" or "serif"; the book's own fonts are not used.
+    readonly property string fontFamily: fontFamilySetting.value === "serif" ? "serif" : "sans"
     // "light" or "dark" once chosen; "" follows the ambience.
     readonly property string pageColors: pageColorsSetting.value || ""
     // A cover taken out of a book by Python's cover thread; file is "" if
@@ -38,6 +40,10 @@ ApplicationWindow {
 
     function setLibraryFolder(folder) {
         libraryFolderSetting.value = folder
+    }
+
+    function setFontFamily(family) {
+        fontFamilySetting.value = family
     }
 
     function setPageColors(colors) {
@@ -98,6 +104,12 @@ ApplicationWindow {
         id: libraryFolderSetting
         key: "/apps/harbour-anchorman/libraryFolder"
         defaultValue: ""
+    }
+
+    ConfigurationValue {
+        id: fontFamilySetting
+        key: "/apps/harbour-anchorman/fontFamily"
+        defaultValue: "sans"
     }
 
     ConfigurationValue {
