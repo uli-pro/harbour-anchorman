@@ -246,8 +246,15 @@ Item {
         }
         onStatusChanged: {
             if (status === Audio.EndOfMedia && player.playing && player.index >= 0
-                    && player.pendingSeek < 0)
+                    && player.pendingSeek < 0) {
                 player.advance()
+            } else if ((status === Audio.Loaded || status === Audio.Buffered) && player.playing
+                       && playbackState === Audio.StoppedState) {
+                // A file loaded at the end of the previous one reports the
+                // stop of that one only after play() was called, which drops
+                // the call (seen on the device).
+                play()
+            }
         }
         onError: {
             console.warn("Audio error", error, errorString, source)
