@@ -1,6 +1,7 @@
 """The package document (OPF): reading order, metadata, table of contents."""
 
 import collections
+import math
 
 from .errors import EpubError
 from .overlay import parse_clock
@@ -29,8 +30,27 @@ SpineItem = collections.namedtuple(
     "SpineItem", "path media_type overlay linear")
 # path is None for headings without a link; level 0 is the top level.
 TocEntry = collections.namedtuple("TocEntry", "title path fragment level")
+# What the library shows. sort is the first author's sort name ("Wilde,
+# Oscar"); series_index is a float or None; cover a path in the book or None.
+BookInfo = collections.namedtuple(
+    "BookInfo", "identifier title authors sort series series_index cover")
 
 _Item = collections.namedtuple("_Item", "path media_type properties overlay_id")
+
+
+def package_path(container):
+    """The path of the package document named in container.xml."""
+    opf_path = None
+    for rootfile in container.iter(_CONTAINER + "rootfile"):
+        if rootfile.get("media-type") == "application/oebps-package+xml":
+            opf_path = rootfile.get("full-path")
+            break
+    if not opf_path:
+        raise EpubError("not_epub", "no package document")
+    target = resolve("", opf_path)
+    if not target:
+        raise EpubError("bad_package", opf_path)
+    return target[0]
 
 
 def read_package(root):
@@ -39,18 +59,8 @@ def read_package(root):
         container = parse_xml(local_path(root, "META-INF/container.xml"))
     except OSError:
         raise EpubError("not_epub", "no META-INF/container.xml")
-    opf_path = None
-    for rootfile in container.iter(_CONTAINER + "rootfile"):
-        if rootfile.get("media-type") == "application/oebps-package+xml":
-            opf_path = rootfile.get("full-path")
-            break
-    if not opf_path:
-        raise EpubError("not_epub", "no package document")
+    opf_path = package_path(container)
     _check_encryption(root)
-    target = resolve("", opf_path)
-    if not target:
-        raise EpubError("bad_package", opf_path)
-    opf_path = target[0]
     try:
         opf = parse_xml(local_path(root, opf_path))
     except OSError:
@@ -88,6 +98,23 @@ def read_package(root):
                       or DEFAULT_ACTIVE_CLASS),
         spine=spine,
         toc=toc)
+
+
+def read_info(opf, opf_path):
+    """The library's view of the parsed package document opf."""
+    metadata = opf.find(_OPF + "metadata")
+    if metadata is None:
+        metadata = opf.makeelement(_OPF + "metadata", {})
+    creators = _creators(metadata)
+    series, index = _series(metadata)
+    return BookInfo(
+        identifier=_identifier(opf, metadata),
+        title=_first_text(metadata, _DC + "title"),
+        authors=[name for name, _ in creators],
+        sort=_sort_name(metadata, creators[0]) if creators else "",
+        series=series,
+        series_index=index,
+        cover=_cover(metadata, _read_manifest(opf, opf_path)))
 
 
 def read_nav(root, nav_path):
@@ -237,20 +264,67 @@ def _identifier(opf, metadata):
 
 
 def _authors(metadata):
+    return [name for name, _ in _creators(metadata)]
+
+
+def _creators(metadata):
+    """(name, element) of the creators that are not narrators."""
     # EPUB 3 states roles in <meta refines="#id" property="role">,
-    # EPUB 2 in an opf:role attribute. Narrators are not authors.
-    roles = {}
-    for meta in metadata.iterfind(_OPF + "meta"):
-        refines = meta.get("refines", "")
-        if meta.get("property") == "role" and refines.startswith("#"):
-            roles[refines[1:]] = _text(meta)
-    authors = []
+    # EPUB 2 in an opf:role attribute.
+    roles = _refinements(metadata, "role")
+    creators = []
     for creator in metadata.iterfind(_DC + "creator"):
         role = roles.get(creator.get("id"), creator.get(_OPF + "role"))
         name = _text(creator)
         if name and role != "nrt":
-            authors.append(name)
-    return authors
+            creators.append((name, creator))
+    return creators
+
+
+def _sort_name(metadata, creator):
+    name, element = creator
+    sort = (_refinements(metadata, "file-as").get(element.get("id"))
+            or element.get(_OPF + "file-as") or "")
+    return " ".join(sort.split()) or name
+
+
+def _series(metadata):
+    """(name, index) of the series, from calibre's or EPUB 3's metadata."""
+    name, index = "", None
+    for meta in metadata.iterfind(_OPF + "meta"):
+        if meta.get("name") == "calibre:series":
+            name = " ".join(meta.get("content", "").split())
+        elif meta.get("name") == "calibre:series_index":
+            index = _number(meta.get("content"))
+    if name:
+        return name, index
+    for meta in metadata.iterfind(_OPF + "meta"):
+        if meta.get("property") == "belongs-to-collection" and not meta.get("refines"):
+            details = {}
+            if meta.get("id"):
+                for prop in ("collection-type", "group-position"):
+                    details[prop] = _refinements(metadata, prop).get(meta.get("id"), "")
+            if details.get("collection-type", "") in ("", "series"):
+                return _text(meta), _number(details.get("group-position"))
+    return "", None
+
+
+def _refinements(metadata, prop):
+    """{id: text} of the <meta property=prop refines="#id"> elements."""
+    found = {}
+    for meta in metadata.iterfind(_OPF + "meta"):
+        refines = meta.get("refines", "")
+        if meta.get("property") == prop and refines.startswith("#"):
+            found.setdefault(refines[1:], _text(meta))
+    return found
+
+
+def _number(text):
+    try:
+        value = float(text)
+    except (TypeError, ValueError):
+        return None
+    return value if math.isfinite(value) else None
 
 
 def _cover(metadata, manifest):

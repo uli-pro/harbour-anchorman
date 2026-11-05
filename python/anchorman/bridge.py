@@ -8,7 +8,10 @@ of the EpubError codes or "io", and QML shows a translated message.
 
 import getpass
 import hashlib
+import math
 import os
+import threading
+import unicodedata
 
 from . import cache, library, positions
 from .errors import EpubError
@@ -30,6 +33,118 @@ def default_folders(documents):
     except (KeyError, OSError):
         return [documents]
     return [documents] + library.card_folders(os.path.join(_MEDIA_ROOT, user))
+
+
+_COVER_TYPES = (".jpg", ".jpeg", ".png", ".gif", ".svg", ".webp")
+_scan_lock = threading.Lock()
+
+
+def cached_library(cache_file):
+    """The library as last scanned, at once; see library_view."""
+    return library_view(library.load_cached(cache_file))
+
+
+def scan_library(folders, cache_file, covers_dir):
+    """Look for new and changed books in a thread, so that a book can be
+    opened meanwhile; the result comes as the event "library"."""
+    import pyotherside  # only on the device
+
+    def run():
+        with _scan_lock:
+            result = scan_now(folders, cache_file, covers_dir)
+        pyotherside.send("library", result)
+
+    threading.Thread(target=run, daemon=True).start()
+
+
+def scan_now(folders, cache_file, covers_dir):
+    try:
+        entries = library.scan(folders, cache_file)
+    except OSError as e:
+        return _error("io", str(e))
+    library.prune_covers(covers_dir, {library.cover_name(e) for e in entries})
+    return library_view(entries)
+
+
+def library_view(entries):
+    """{books, authors} for the library pages.
+
+    books are sorted by author, then series in order, then the other titles;
+    authors lists each first author once with the number of books. Authors
+    are told apart by their sort name ("Wilde, Oscar"), so "Oscar Wilde" in
+    one book and "Wilde, Oscar" in another are one author; group is the key.
+    Books that a readaloud replaces are left out.
+    """
+    entries = library.without_replaced(entries)
+    copies = {}
+    for entry in entries:
+        info = entry["info"]
+        key = (library.normal_identifier(info["identifier"]), info["title"], info["audio"])
+        copies[key] = copies.get(key, 0) + 1
+    books = []
+    for entry in entries:
+        info = entry["info"]
+        author = info["authors"][0] if info["authors"] else ""
+        sort = info["sort"] or author
+        key = (library.normal_identifier(info["identifier"]), info["title"], info["audio"])
+        books.append({
+            "path": entry["path"], "key": library.cover_name(entry),
+            "title": info["title"], "author": author, "authors": "; ".join(info["authors"]),
+            "sort": sort, "group": fold(sort), "letter": _letter(sort),
+            "series": info["series"],
+            "index": info["index"], "cover": info["cover"], "audio": info["audio"],
+            "broken": info["broken"],
+            "removable": os.path.realpath(entry["path"]).startswith(_MEDIA_ROOT + "/"),
+            # Several copies of one book: say where each is.
+            "duplicate": bool(info["identifier"]) and copies[key] > 1,
+            "search": fold(" ".join(info["authors"] + [info["title"], info["series"]]))})
+    books.sort(key=_order)
+    authors = []
+    for book in books:
+        if authors and authors[-1]["group"] == book["group"]:
+            authors[-1]["count"] += 1
+        else:
+            authors.append({"name": book["author"], "group": book["group"],
+                            "letter": book["letter"], "count": 1})
+    return {"books": books, "authors": authors}
+
+
+def cover(epub_path, cover_path, name, covers_dir):
+    """The file of the book's cover in covers_dir, extracted on first use;
+    "" if there is none."""
+    ext = os.path.splitext(cover_path or "")[1].lower()
+    if ext not in _COVER_TYPES:
+        return ""
+    target = os.path.join(covers_dir, name + ext)
+    if os.path.isfile(target):
+        return target
+    try:
+        os.makedirs(covers_dir, exist_ok=True)
+    except OSError:
+        return ""
+    return target if library.extract_cover(epub_path, cover_path, target) else ""
+
+
+def recent_books(path):
+    """The EPUB files opened last, newest first."""
+    return positions.load_recent(path)
+
+
+def fold(text):
+    """text for comparing: lower case, without accents (ä → a, ß → ss)."""
+    text = unicodedata.normalize("NFKD", text)
+    return "".join(c for c in text if not unicodedata.combining(c)).casefold()
+
+
+def _letter(sort):
+    first = fold(sort)[:1].upper()
+    return first if first.isalpha() else ("#" if first else "")
+
+
+def _order(book):
+    return (book["group"] or "\uffff", book["series"] == "",
+            fold(book["series"]), book["index"] if book["index"] is not None else math.inf,
+            fold(book["title"]), book["path"])
 
 
 def list_books(folders):

@@ -1,8 +1,8 @@
 import os
 
 from anchorman.errors import EpubError
-from anchorman.package import (SpineItem, TocEntry, read_nav, read_ncx, read_package,
-                               text_length)
+from anchorman.package import (BookInfo, SpineItem, TocEntry, read_info, read_nav, read_ncx,
+                               read_package, text_length)
 
 from .helpers import MINI_DIR, TempDirTestCase, write_files
 
@@ -361,3 +361,49 @@ class TextLengthTest(TempDirTestCase):
 
     def test_mini_chapter(self):
         self.assertGreater(text_length(MINI_DIR, "OEBPS/chapter.xhtml"), 100)
+
+
+class InfoTest(TempDirTestCase):
+
+    def info(self, metadata="", manifest=CHAPTER):
+        from xml.etree import ElementTree
+        opf = ElementTree.fromstring(OPF.format(metadata=metadata, manifest=manifest,
+                                                spine='<itemref idref="c1"/>'))
+        return read_info(opf, "OPS/package.opf")
+
+    def test_epub2(self):
+        info = self.info(
+            '<dc:identifier id="uid">urn:uuid:1</dc:identifier><dc:title>Shogun</dc:title>'
+            '<dc:creator opf:role="nrt">Ned Narrator</dc:creator>'
+            '<dc:creator opf:role="aut" opf:file-as="Clavell, James">James Clavell</dc:creator>'
+            '<meta name="calibre:series" content="The Asian Saga"/>'
+            '<meta name="calibre:series_index" content="1.0"/>'
+            '<meta name="cover" content="img"/>',
+            CHAPTER + '<item id="img" href="cover.jpg" media-type="image/jpeg"/>')
+        self.assertEqual(info, BookInfo("urn:uuid:1", "Shogun", ["James Clavell"], "Clavell, James",
+                                        "The Asian Saga", 1.0, "OPS/cover.jpg"))
+
+    def test_epub3(self):
+        info = self.info(
+            '<dc:creator id="a">Oscar Wilde</dc:creator>'
+            '<meta refines="#a" property="file-as">Wilde, Oscar</meta>'
+            '<meta property="belongs-to-collection" id="c">Fairy Tales</meta>'
+            '<meta refines="#c" property="collection-type">series</meta>'
+            '<meta refines="#c" property="group-position">2</meta>')
+        self.assertEqual((info.sort, info.series, info.series_index), ("Wilde, Oscar", "Fairy Tales", 2.0))
+
+    def test_sort_falls_back_to_name(self):
+        self.assertEqual(self.info('<dc:creator>Ann Author</dc:creator>').sort, "Ann Author")
+        self.assertEqual(self.info().sort, "")
+
+    def test_series_without_or_with_bad_index(self):
+        info = self.info('<meta name="calibre:series" content="S"/><meta name="calibre:series_index" content="x"/>')
+        self.assertEqual((info.series, info.series_index), ("S", None))
+        info = self.info('<meta name="calibre:series" content="S"/><meta name="calibre:series_index" content="nan"/>')
+        self.assertIsNone(info.series_index)
+
+    def test_collection_that_is_no_series(self):
+        info = self.info(
+            '<meta property="belongs-to-collection" id="c">Classics</meta>'
+            '<meta refines="#c" property="collection-type">set</meta>')
+        self.assertEqual(info.series, "")

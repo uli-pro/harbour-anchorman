@@ -8,7 +8,8 @@ heard last rather than the top of the page read last; listening resumes
 there). The sentence id survives changes of font size and orientation;
 fraction is the fallback for pages without one.
 
-File format: {"books": {key: position}, "last": path of the EPUB file}.
+File format: {"books": {key: position}, "last": path of the EPUB file,
+"recent": paths of the EPUB files opened last, newest first}.
 """
 
 import json
@@ -16,6 +17,7 @@ import math
 import os
 
 MAX_SIZE = 1024 * 1024
+RECENT = 3
 _MAX_ID_LENGTH = 1000
 
 
@@ -43,11 +45,17 @@ def load_last(path):
 def save_last(path, epub_path):
     state = _read_all(path)
     state["last"] = epub_path
+    state["recent"] = ([epub_path] + [p for p in state["recent"] if p != epub_path])[:RECENT]
     _write(path, state)
 
 
+def load_recent(path):
+    """The EPUB files opened last that still exist, newest first."""
+    return [p for p in _read_all(path)["recent"] if os.path.isfile(p)]
+
+
 def _read_all(path):
-    state = {"books": {}, "last": None}
+    state = {"books": {}, "last": None, "recent": []}
     try:
         with open(path, "rb") as f:
             data = f.read(MAX_SIZE + 1)
@@ -60,6 +68,9 @@ def _read_all(path):
         if isinstance(stored.get("books"), dict):
             state["books"] = stored["books"]
         state["last"] = stored.get("last")
+        recent = stored.get("recent")
+        if isinstance(recent, list):
+            state["recent"] = [p for p in recent if isinstance(p, str)][:RECENT]
     return state
 
 

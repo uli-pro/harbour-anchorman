@@ -179,3 +179,62 @@ class BridgeTest(TempDirTestCase):
         path = os.path.join(self.tmp, "file", "positions.json")
         result = bridge.save_position(path, "book", {"spine": 0, "id": "", "fraction": 0})
         self.assertEqual(result["error"], "io")
+
+
+def entry(path, title, authors=(), sort="", series="", index=None, identifier="", audio=False):
+    return {"path": path, "stamp": [1, 2], "info": {
+        "identifier": identifier, "title": title, "authors": list(authors), "sort": sort,
+        "series": series, "index": index, "cover": None, "audio": audio, "broken": False}}
+
+
+class LibraryViewTest(TempDirTestCase):
+
+    def test_order_and_authors(self):
+        view = bridge.library_view([
+            entry("/b/1", "Zoo", ["Ann Ärger"], "Ärger, Ann"),
+            entry("/b/2", "Book 2", ["Ann Ärger"], "Ärger, Ann", "Saga", 2.0),
+            entry("/b/3", "Book 10", ["Ärger, Ann"], "", "Saga", 10.0),
+            entry("/b/4", "Alpha", ["Ann Ärger"], "Ärger, Ann"),
+            entry("/b/5", "Nobody's", []),
+            entry("/b/6", "Other", ["bob Brown"], "Brown, Bob", "Alpha Series", None),
+        ])
+        self.assertEqual([b["path"] for b in view["books"]],
+                         ["/b/2", "/b/3", "/b/4", "/b/1", "/b/6", "/b/5"])
+        self.assertEqual([(a["name"], a["letter"], a["count"]) for a in view["authors"]],
+                         [("Ann Ärger", "A", 4), ("bob Brown", "B", 1), ("", "", 1)])
+        self.assertEqual(view["books"][0]["search"], "ann arger book 2 saga")
+        json.dumps(view)
+
+    def test_replaced_and_copies(self):
+        view = bridge.library_view([
+            entry("/card/a", "T", ["A"], identifier="urn:uuid:x"),
+            entry("/card/b", "T", ["A"], identifier="uuid:x", audio=True),
+            entry("/card/c", "U", ["A"], identifier="y"),
+            entry("/home/c", "U", ["A"], identifier="y"),
+        ])
+        self.assertEqual([(b["path"], b["duplicate"]) for b in view["books"]],
+                         [("/card/b", False), ("/card/c", True), ("/home/c", True)])
+
+    def test_cover(self):
+        epub = os.path.join(self.tmp, "b.epub")
+        make_epub(epub, mini_entries())
+        covers = os.path.join(self.tmp, "covers")
+        path = bridge.cover(epub, "OEBPS/cover.svg", "0123456789abcdef", covers)
+        self.assertEqual(path, os.path.join(covers, "0123456789abcdef.svg"))
+        self.assertTrue(os.path.isfile(path))
+        self.assertEqual(bridge.cover(epub, "OEBPS/cover.svg", "0123456789abcdef", covers), path)
+        self.assertEqual(bridge.cover(epub, "OEBPS/chapter.xhtml", "0123456789abcdef", covers), "")
+        self.assertEqual(bridge.cover(epub, None, "0123456789abcdef", covers), "")
+
+    def test_scan_now(self):
+        books = os.path.join(self.tmp, "books")
+        os.makedirs(books)
+        make_epub(os.path.join(books, "b.epub"), mini_entries())
+        covers = os.path.join(self.tmp, "covers")
+        os.makedirs(covers)
+        open(os.path.join(covers, "fedcba9876543210.png"), "w").close()
+        cache_file = os.path.join(self.tmp, "library.json")
+        view = bridge.scan_now([books], cache_file, covers)
+        self.assertEqual([b["title"] for b in view["books"]], ["The Happy Prince"])
+        self.assertEqual(os.listdir(covers), [])
+        self.assertEqual(bridge.cached_library(cache_file), view)
