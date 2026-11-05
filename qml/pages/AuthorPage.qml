@@ -22,6 +22,9 @@ Page {
             //: Place of the book in its series, e.g. "Book 3"
             parts.push(qsTr("Book %1").arg(book.index.toLocaleString(Qt.locale(), "f",
                                                                      book.index % 1 ? 1 : 0)))
+        if (book.coauthors.length > 0)
+            //: Further authors of a book, e.g. "with Andrew Child"
+            parts.push(qsTr("with %1").arg(book.coauthors.join(", ")))
         if (book.broken)
             //: The book is damaged or protected by DRM
             parts.push(qsTr("Cannot be opened"))

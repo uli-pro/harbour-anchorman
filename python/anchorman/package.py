@@ -113,7 +113,7 @@ def read_info(opf, opf_path):
         identifier=_identifier(opf, metadata),
         title=_first_text(metadata, _DC + "title"),
         authors=[name for name, _ in creators],
-        sort=_sort_name(metadata, creators[0]) if creators else "",
+        sort=_sort_name(metadata, creators[0], len(creators)) if creators else "",
         series=series,
         series_index=index,
         cover=_cover(metadata, manifest),
@@ -290,10 +290,14 @@ def _creators(metadata):
     return creators
 
 
-def _sort_name(metadata, creator):
+def _sort_name(metadata, creator, count):
     name, element = creator
     sort = (_refinements(metadata, "file-as").get(element.get("id"))
             or element.get(_OPF + "file-as") or "")
+    # Calibre puts the sort names of all authors into the first one's:
+    # "Child, Lee & Child, Andrew".
+    if count > 1:
+        sort = sort.split(" & ")[0]
     return " ".join(sort.split()) or name
 
 

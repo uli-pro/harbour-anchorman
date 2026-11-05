@@ -392,6 +392,14 @@ class InfoTest(TempDirTestCase):
             '<meta refines="#c" property="group-position">2</meta>')
         self.assertEqual((info.sort, info.series, info.series_index), ("Wilde, Oscar", "Fairy Tales", 2.0))
 
+    def test_sort_name_of_several_authors(self):
+        info = self.info(
+            '<dc:creator opf:file-as="Child, Lee &amp; Child, Andrew">Lee Child</dc:creator>'
+            '<dc:creator opf:file-as="Child, Andrew">Andrew Child</dc:creator>')
+        self.assertEqual(info.sort, "Child, Lee")
+        info = self.info('<dc:creator opf:file-as="Höcker, Anna &amp; Rist, Fred">Anna Höcker &amp; Fred Rist</dc:creator>')
+        self.assertEqual(info.sort, "Höcker, Anna &amp; Rist, Fred".replace("&amp;", "&"))
+
     def test_sort_falls_back_to_name(self):
         self.assertEqual(self.info('<dc:creator>Ann Author</dc:creator>').sort, "Ann Author")
         self.assertEqual(self.info().sort, "")

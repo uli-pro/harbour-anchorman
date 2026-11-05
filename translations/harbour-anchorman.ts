@@ -11,32 +11,38 @@
     </message>
     <message>
         <location filename="../qml/pages/AuthorPage.qml" line="27"/>
+        <source>with %1</source>
+        <extracomment>Further authors of a book, e.g. &quot;with Andrew Child&quot;</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/AuthorPage.qml" line="30"/>
         <source>Cannot be opened</source>
         <extracomment>The book is damaged or protected by DRM</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/AuthorPage.qml" line="29"/>
+        <location filename="../qml/pages/AuthorPage.qml" line="32"/>
         <source>SD card</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/AuthorPage.qml" line="29"/>
+        <location filename="../qml/pages/AuthorPage.qml" line="32"/>
         <source>Device</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/AuthorPage.qml" line="42"/>
+        <location filename="../qml/pages/AuthorPage.qml" line="45"/>
         <source>Unknown author</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/AuthorPage.qml" line="47"/>
+        <location filename="../qml/pages/AuthorPage.qml" line="50"/>
         <source>Other books</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/AuthorPage.qml" line="61"/>
+        <location filename="../qml/pages/AuthorPage.qml" line="64"/>
         <source>Opening book</source>
         <translation type="unfinished"></translation>
     </message>

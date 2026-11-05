@@ -222,7 +222,7 @@ class ScanTest(TempDirTestCase):
 
     def test_damaged_cache_is_ignored(self):
         self.book("a.epub")
-        for content in ("{", "[]", '{"version": 2, "books": [{"path": 5}]}',
+        for content in ("{", "[]", '{"version": 3, "books": [{"path": 5}]}',
                         '{"version": 99, "books": []}', "[" * 100000 + "]" * 100000):
             write_files(os.path.dirname(self.cache), {"library.json": content})
             self.assertEqual(load_cached(self.cache), [])
@@ -234,7 +234,7 @@ class ScanTest(TempDirTestCase):
         for field, value in (("authors", [1]), ("index", float("nan")), ("index", True)):
             bad = dict(entry, info=dict(entry["info"], **{field: value}))
             write_files(os.path.dirname(self.cache), {"library.json": json.dumps(
-                {"version": 2, "books": [bad]})})
+                {"version": 3, "books": [bad]})})
             self.assertEqual(load_cached(self.cache), [], field)
 
 
