@@ -180,6 +180,8 @@ WebViewPage {
         serial++
         ready = false
         covered = true
+        // The fallback of the layout before must not uncover this one.
+        uncoverTimer.stop()
         charsPerPage = 0
         // Page numbers of the old layout no longer fit.
         splits = []
@@ -254,7 +256,7 @@ WebViewPage {
             if (data.serial !== serial)
                 return
             if (data.textScale > 0)
-                app.textScale = data.textScale
+                app.setTextScale(data.textScale)
             ready = true
             if (covered && !uncoverTimer.running)
                 uncoverTimer.restart()
@@ -493,10 +495,11 @@ WebViewPage {
 
     Connections {
         target: app
-        onFontSizeChanged: page.relayout()
-        onFontFamilyChanged: page.relayout()
-        onLineHeightChanged: page.relayout()
-        onParagraphSpacingChanged: page.relayout()
+        // Leaving the settings stores several at once: one layout for all.
+        onFontSizeChanged: settingsTimer.restart()
+        onFontFamilyChanged: settingsTimer.restart()
+        onLineHeightChanged: settingsTimer.restart()
+        onParagraphSpacingChanged: settingsTimer.restart()
     }
 
     onBarShownChanged: relayout()
@@ -766,6 +769,12 @@ WebViewPage {
         anchors.fill: flickable
         color: pageColor
         visible: covered
+    }
+
+    Timer {
+        id: settingsTimer
+        interval: 0
+        onTriggered: page.relayout()
     }
 
     Timer {

@@ -37,8 +37,15 @@ ApplicationWindow {
     readonly property real paragraphSpacing: settingValue(paragraphSpacingSetting.value, 0.5,
                                                           minParagraphSpacing, maxParagraphSpacing)
     // How much larger the WebView shows text than the size asked for,
-    // measured by the reading page.
-    property real textScale: 1
+    // measured by the reading page and kept for the next start.
+    readonly property real textScale: Number(textScaleSetting.value) > 0 ? Number(textScaleSetting.value) : 1.6
+
+    function setTextScale(scale) {
+        // Rounded: tiny differences between chapters need no write.
+        scale = Math.round(scale * 1000) / 1000
+        if (scale !== textScale)
+            textScaleSetting.value = scale
+    }
     // "sans" or "serif"; the book's own fonts are not used.
     readonly property string fontFamily: fontFamilySetting.value === "serif" ? "serif" : "sans"
     // "light" or "dark" once chosen; "" follows the ambience.
@@ -156,6 +163,12 @@ ApplicationWindow {
         id: paragraphSpacingSetting
         key: "/apps/harbour-anchorman/paragraphSpacing"
         defaultValue: 0.5
+    }
+
+    ConfigurationValue {
+        id: textScaleSetting
+        key: "/apps/harbour-anchorman/textScale"
+        defaultValue: 0
     }
 
     ConfigurationValue {

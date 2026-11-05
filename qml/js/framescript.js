@@ -67,7 +67,9 @@ addMessageListener("anchorman:layout", function (message) {
     // nor override the basic settings. Pages are CSS columns of one screen width
     // each: a column of width - 2 * margin plus a gap of 2 * margin, so every
     // page starts exactly one screen width further right.
-    style.textContent = important(
+    // Our font rules apply to XHTML elements only (h|*): MathML and SVG keep
+    // theirs. The namespace rule must come first and takes no !important.
+    style.textContent = "@namespace h url(" + xhtml + ");" + important(
         // On html too: sizes in rem refer to it.
         "html { height: 100%; margin: 0; padding: 0; overflow: hidden; background: " + o.background + ";" +
         "  font-size: " + fontSize + "px; }" +
@@ -81,17 +83,11 @@ addMessageListener("anchorman:layout", function (message) {
         // come from the app, relative sizes, indents and spacing of the
         // book build on them. A unitless line height scales with each font.
         "body * { line-height: inherit; }" +
-        // The app's font, not the book's; code stays monospaced, formulas
-        // keep their math font. The book's own fonts follow the app's, for
-        // characters it lacks (Greek, Hebrew).
-        "body, body * { font-family: " + o.fontFamily + bookFonts(doc) + "; }" +
-        "body pre, body pre *, body code, body code *, body kbd, body kbd *," +
-        "  body samp, body samp *, body tt, body tt * { font-family: monospace; }" +
-        "body math, body math * { font-family: math; }" +
-        // Paragraphs as chosen in the app: space after each, or with none an
-        // indent, so that they can still be told apart.
-        "body p { margin-top: 0; margin-bottom: " + (o.paragraphSpacing * o.lineHeight) + "em;" +
-        "  text-indent: " + (o.paragraphSpacing > 0 ? "0" : "1em") + "; }" +
+        // The app's font, not the book's; code stays monospaced. The book's
+        // own fonts follow the app's, for characters it lacks (Greek, Hebrew).
+        "body, body h|* { font-family: " + o.fontFamily + bookFonts(doc) + "; }" +
+        "body h|pre, body h|pre h|*, body h|code, body h|code h|*, body h|kbd, body h|kbd h|*," +
+        "  body h|samp, body h|samp h|*, body h|tt, body h|tt h|* { font-family: monospace; }" +
         "body img, body svg { display: block; margin: 0 auto; max-width: 100%; max-height: 70vh;" +
         "  break-inside: avoid; }" +
         // Links cannot be followed, so they look like the text around them.
@@ -99,7 +95,7 @@ addMessageListener("anchorman:layout", function (message) {
         // Our own mark for the sentence spoken: the book's style for its
         // active class is made for white pages.
         "body .anchorman-active { background-color: " + o.activeColor + "; }")
-    normalize(doc)
+    normalize(doc, o)
 
     var sentences = []
     var isSentence = {}
@@ -120,7 +116,10 @@ addMessageListener("anchorman:layout", function (message) {
         // scrolling the root four screen widths before its end.
         scroller: doc.body || doc.documentElement,
         width: width,
-        fontSize: fontSize,
+        // The WebView enlarges text by itself (measured: 1.6); the settings
+        // page shows its sample at the size the reader sees. A page Gecko
+        // could not parse has no body.
+        textScale: doc.body ? parseFloat(content.getComputedStyle(doc.body).fontSize) / fontSize : 0,
         sentences: sentences,
         isSentence: isSentence,
         active: active
@@ -224,7 +223,7 @@ function bookFonts(doc) {
     var names = []
     try {
         doc.fonts.forEach(function (face) {
-            var name = face.family.replace(/^["']|["']$/g, "").replace(/["\\]/g, "")
+            var name = face.family.replace(/^["']|["']$/g, "").replace(/[\x00-\x1f\x7f"\\;]/g, "")
             if (name && names.indexOf(name) < 0)
                 names.push(name)
         })
@@ -241,28 +240,73 @@ function smallOnPurpose(style, size) {
            || (style.textTransform === "uppercase" && style.display === "inline")
 }
 
-// Undo what CSS alone cannot: justified text leaves wide gaps on a narrow
-// screen, but "center" must stay; a centred paragraph must not be pushed
-// aside by the indent; and books shrink their text with relative
-// sizes on paragraphs or wrappers (".calibre { font-size: 0.75em }"), which
-// would scale the text size chosen in the app, while larger headings must
-// stay. So look at each element: one smaller than its parent gets 1em.
+// Block elements: a div holding none of them is a paragraph.
+var blocks = "p, div, ul, ol, dl, table, blockquote, pre, section, article, aside, figure, " +
+             "header, footer, h1, h2, h3, h4, h5, h6, hr"
+
+// An empty paragraph, typically "<div> </div>" between paragraphs in
+// books converted from Kindle files, stands for a blank line.
+var content_ = "img, svg, hr, video, audio, object, iframe, table, math"
+
+function isBlankLine(element) {
+    return (element.localName === "div" || element.localName === "p")
+           && element.textContent.trim() === "" && !element.querySelector(content_)
+}
+
+// What normalize changed in the book's inline styles, to undo it before the
+// next layout: [element, property, old value, old priority].
+var overridden = []
+
+function override(element, property, value) {
+    overridden.push([element, property, element.style.getPropertyValue(property),
+                     element.style.getPropertyPriority(property)])
+    element.style.setProperty(property, value, "important")
+}
+
+function restore() {
+    // Backwards: an element changed twice gets its first value back.
+    for (var i = overridden.length - 1; i >= 0; --i) {
+        var o = overridden[i]
+        if (o[2])
+            o[0].style.setProperty(o[1], o[2], o[3])
+        else
+            o[0].style.removeProperty(o[1])
+    }
+    overridden = []
+}
+
+// Undo what CSS alone cannot, looking at each element:
+// - books shrink their text with relative sizes on paragraphs or wrappers
+//   (".calibre { font-size: 0.75em }"), which would scale the text size
+//   chosen in the app, while larger headings must stay: an element smaller
+//   than its parent gets 1em;
+// - paragraphs get the app's spacing, or an indent; many books build them
+//   from divs. A large space above one is a scene break and stays. A single
+//   blank line between them goes (it would add to the spacing chosen),
+//   several in a row stay: a scene break;
+// - justified text leaves wide gaps on a narrow screen, but "center" must
+//   stay, and a centred paragraph must not be pushed aside by the indent.
 // All reads come before all writes: mixing them would recompute the styles
 // every time. Only XHTML elements: MathML and SVG size their parts
 // themselves.
-function normalize(doc) {
+function normalize(doc, o) {
+    // A new layout starts from the book's styles, so that it gives the same
+    // result as the first one.
+    try {
+        if (overridden.length > 0 && overridden[0][0].ownerDocument === doc)
+            restore()
+    } catch (e) {
+        // Elements of a chapter already closed.
+    }
+    overridden = []
     if (!doc.body)
         return
-    // A new layout starts from the book's sizes, so that it gives the same
-    // result as the first one.
-    var marked = doc.body.querySelectorAll("[data-anchorman-size]")
-    for (var m = 0; m < marked.length; ++m) {
-        marked[m].style.removeProperty("font-size")
-        marked[m].removeAttribute("data-anchorman-size")
-    }
     var elements = doc.body.getElementsByTagName("*")
     var justified = []
     var centred = []
+    var paragraphs = []
+    var breaks = []
+    var blankLines = []
     // A wrapper made larger can leave a child of fixed size smaller than
     // it; a second look catches that.
     for (var pass = 0; pass < 3; ++pass) {
@@ -279,26 +323,50 @@ function normalize(doc) {
             if (pass === 0) {
                 if (style.textAlign === "justify")
                     justified.push(element)
-                else if (style.textAlign === "center" || style.textAlign === "right"
-                         || style.textAlign === "end")
+                else if (/center|right|end/.test(style.textAlign))
                     centred.push(element)
+                if (isBlankLine(element)) {
+                    blankLines.push(element)
+                } else if (element.localName === "p" || (element.localName === "div"
+                        && !element.querySelector(blocks))) {
+                    paragraphs.push(element)
+                    breaks.push(parseFloat(style.marginTop) > 1.5 * size)
+                }
             }
             var parentSize = sizes.get(element.parentElement)
             if (parentSize && size < parentSize * 0.9 && !smallTags[element.localName]
                     && !smallOnPurpose(style, size))
                 shrunk.push(element)
         }
-        for (var k = 0; k < shrunk.length; ++k) {
-            shrunk[k].style.setProperty("font-size", "1em", "important")
-            shrunk[k].setAttribute("data-anchorman-size", "")
-        }
+        for (var k = 0; k < shrunk.length; ++k)
+            override(shrunk[k], "font-size", "1em")
         if (shrunk.length === 0)
             break
     }
+    var spacing = (o.paragraphSpacing * o.lineHeight) + "em"
+    var indent = o.paragraphSpacing > 0 ? "0" : "1em"
+    for (var p = 0; p < paragraphs.length; ++p) {
+        if (!breaks[p])
+            override(paragraphs[p], "margin-top", "0")
+        override(paragraphs[p], "margin-bottom", spacing)
+        override(paragraphs[p], "text-indent", indent)
+    }
+    for (var b = 0; b < blankLines.length; ++b) {
+        var blank = blankLines[b]
+        var before = blank.previousElementSibling
+        var after = blank.nextElementSibling
+        if ((before && isBlankLine(before)) || (after && isBlankLine(after)))
+            continue
+        // Folded, not hidden: an id on it may be the target of a link.
+        override(blank, "font-size", "0")
+        override(blank, "line-height", "0")
+        override(blank, "margin-top", "0")
+        override(blank, "margin-bottom", "0")
+    }
     for (var j = 0; j < justified.length; ++j)
-        justified[j].style.setProperty("text-align", "start", "important")
+        override(justified[j], "text-align", "start")
     for (var c = 0; c < centred.length; ++c)
-        centred[c].style.setProperty("text-indent", "0", "important")
+        override(centred[c], "text-indent", "0")
 }
 
 // After a layout QML covers the view until Gecko has painted it; the layout
@@ -372,10 +440,7 @@ function showPage(page) {
         pages: pages,
         firstId: firstSentenceStartingOn(page),
         fraction: pages > 1 ? page / (pages - 1) : 0,
-        // The WebView enlarges text by itself (measured: 1.6); the settings
-        // page shows its sample at the size the reader sees.
-        textScale: parseFloat(content.getComputedStyle(content.document.body).fontSize)
-                   / state.fontSize
+        textScale: state.textScale
     })
 }
 
