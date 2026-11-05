@@ -20,9 +20,9 @@ WebViewPage {
     property int serial: 0
     property bool ready: false
     property bool covered: true
-    property int laidOutFontSize: 0
-    property bool laidOutBar: false
-    property bool laidOutLight: false
+    // The settings of the last layout; another layout follows if they
+    // changed while one was under way.
+    property string laidOut: ""
     property int pageIndex: 0
     property int pageCount: 0
     property string firstId: ""
@@ -137,13 +137,16 @@ WebViewPage {
         }
     }
 
+    function layoutSettings() {
+        return [app.fontSize, app.fontFamily, app.lineHeight, app.paragraphSpacing,
+                barShown, lightPage].join("|")
+    }
+
     function layout(target) {
-        laidOutFontSize = app.fontSize
-        laidOutBar = barShown
+        laidOut = layoutSettings()
         // From lightPage itself: the palette and pageColor may still hold
         // the old colours while lightPage changes (seen on the device).
         var light = lightPage
-        laidOutLight = light
         // While listening the page shows the sentence spoken; paused, it
         // stays where the reader is.
         if (listening && player.playing && highlightId)
@@ -162,7 +165,8 @@ WebViewPage {
             barHeight: barShown ? bar.height : 0,
             fontSize: app.fontSize,
             fontFamily: app.fontFamily === "serif" ? "serif" : "sans-serif",
-            lineHeight: 1.3,
+            lineHeight: app.lineHeight,
+            paragraphSpacing: app.paragraphSpacing,
             color: light ? "black" : "white",
             background: light ? "white" : "black"
         })
@@ -249,6 +253,8 @@ WebViewPage {
         case "anchorman:page":
             if (data.serial !== serial)
                 return
+            if (data.textScale > 0)
+                app.textScale = data.textScale
             ready = true
             if (covered && !uncoverTimer.running)
                 uncoverTimer.restart()
@@ -258,8 +264,7 @@ WebViewPage {
             fraction = data.fraction
             updateBookPages()
             savePosition()
-            if (laidOutFontSize !== app.fontSize || laidOutBar !== barShown
-                    || laidOutLight !== lightPage)
+            if (laidOut !== layoutSettings())
                 relayout()
             break
         case "anchorman:painted":
@@ -490,6 +495,8 @@ WebViewPage {
         target: app
         onFontSizeChanged: page.relayout()
         onFontFamilyChanged: page.relayout()
+        onLineHeightChanged: page.relayout()
+        onParagraphSpacingChanged: page.relayout()
     }
 
     onBarShownChanged: relayout()
@@ -601,10 +608,6 @@ WebViewPage {
             backgroundColor: pageColor
 
             MenuItem {
-                text: qsTr("Settings")
-                onClicked: pageStack.push(Qt.resolvedUrl("SettingsPage.qml"))
-            }
-            MenuItem {
                 text: qsTr("Library")
                 onClicked: {
                     savePosition()
@@ -612,6 +615,10 @@ WebViewPage {
                     stopPlayer()
                     pageStack.pop()
                 }
+            }
+            MenuItem {
+                text: qsTr("Settings")
+                onClicked: pageStack.push(Qt.resolvedUrl("SettingsPage.qml"))
             }
             MenuItem {
                 text: qsTr("Contents")

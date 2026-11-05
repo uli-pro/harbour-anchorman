@@ -81,9 +81,17 @@ addMessageListener("anchorman:layout", function (message) {
         // come from the app, relative sizes, indents and spacing of the
         // book build on them. A unitless line height scales with each font.
         "body * { line-height: inherit; }" +
-        // The app's font, not the book's; code stays monospaced.
-        "body, body * { font-family: " + o.fontFamily + "; }" +
-        "body pre, body code, body kbd, body samp, body tt { font-family: monospace; }" +
+        // The app's font, not the book's; code stays monospaced, formulas
+        // keep their math font. The book's own fonts follow the app's, for
+        // characters it lacks (Greek, Hebrew).
+        "body, body * { font-family: " + o.fontFamily + bookFonts(doc) + "; }" +
+        "body pre, body pre *, body code, body code *, body kbd, body kbd *," +
+        "  body samp, body samp *, body tt, body tt * { font-family: monospace; }" +
+        "body math, body math * { font-family: math; }" +
+        // Paragraphs as chosen in the app: space after each, or with none an
+        // indent, so that they can still be told apart.
+        "body p { margin-top: 0; margin-bottom: " + (o.paragraphSpacing * o.lineHeight) + "em;" +
+        "  text-indent: " + (o.paragraphSpacing > 0 ? "0" : "1em") + "; }" +
         "body img, body svg { display: block; margin: 0 auto; max-width: 100%; max-height: 70vh;" +
         "  break-inside: avoid; }" +
         // Links cannot be followed, so they look like the text around them.
@@ -112,6 +120,7 @@ addMessageListener("anchorman:layout", function (message) {
         // scrolling the root four screen widths before its end.
         scroller: doc.body || doc.documentElement,
         width: width,
+        fontSize: fontSize,
         sentences: sentences,
         isSentence: isSentence,
         active: active
@@ -207,38 +216,89 @@ function important(css) {
 }
 
 // Elements that may stay smaller than the text around them.
-var smallTags = { sub: true, sup: true, small: true, rt: true }
+var smallTags = { sub: true, sup: true, small: true, rt: true, rtc: true, rp: true }
+var xhtml = "http://www.w3.org/1999/xhtml"
+
+// The families of the book's @font-face rules, quoted, each after a comma.
+function bookFonts(doc) {
+    var names = []
+    try {
+        doc.fonts.forEach(function (face) {
+            var name = face.family.replace(/^["']|["']$/g, "").replace(/["\\]/g, "")
+            if (name && names.indexOf(name) < 0)
+                names.push(name)
+        })
+    } catch (e) {
+        return ""
+    }
+    return names.map(function (name) { return ', "' + name + '"' }).join("")
+}
+
+// Kept small on purpose: hidden (0), raised like a note mark, or small caps.
+function smallOnPurpose(style, size) {
+    return size === 0 || /^(super|sub|top|text-top)$/.test(style.verticalAlign)
+           || style.fontVariantCaps !== "normal"
+           || (style.textTransform === "uppercase" && style.display === "inline")
+}
 
 // Undo what CSS alone cannot: justified text leaves wide gaps on a narrow
-// screen, but "center" must stay; and books shrink their text with relative
+// screen, but "center" must stay; a centred paragraph must not be pushed
+// aside by the indent; and books shrink their text with relative
 // sizes on paragraphs or wrappers (".calibre { font-size: 0.75em }"), which
 // would scale the text size chosen in the app, while larger headings must
 // stay. So look at each element: one smaller than its parent gets 1em.
 // All reads come before all writes: mixing them would recompute the styles
-// every time.
+// every time. Only XHTML elements: MathML and SVG size their parts
+// themselves.
 function normalize(doc) {
     if (!doc.body)
         return
+    // A new layout starts from the book's sizes, so that it gives the same
+    // result as the first one.
+    var marked = doc.body.querySelectorAll("[data-anchorman-size]")
+    for (var m = 0; m < marked.length; ++m) {
+        marked[m].style.removeProperty("font-size")
+        marked[m].removeAttribute("data-anchorman-size")
+    }
     var elements = doc.body.getElementsByTagName("*")
-    var sizes = new Map([[doc.body, parseFloat(content.getComputedStyle(doc.body).fontSize)]])
     var justified = []
-    var shrunk = []
-    // Document order: a parent comes before its children.
-    for (var i = 0; i < elements.length; ++i) {
-        var element = elements[i]
-        var style = content.getComputedStyle(element)
-        var size = parseFloat(style.fontSize)
-        sizes.set(element, size)
-        if (style.textAlign === "justify")
-            justified.push(element)
-        var parentSize = sizes.get(element.parentElement)
-        if (parentSize && size < parentSize * 0.9 && !smallTags[element.localName])
-            shrunk.push(element)
+    var centred = []
+    // A wrapper made larger can leave a child of fixed size smaller than
+    // it; a second look catches that.
+    for (var pass = 0; pass < 3; ++pass) {
+        var sizes = new Map([[doc.body, parseFloat(content.getComputedStyle(doc.body).fontSize)]])
+        var shrunk = []
+        // Document order: a parent comes before its children.
+        for (var i = 0; i < elements.length; ++i) {
+            var element = elements[i]
+            if (element.namespaceURI !== xhtml)
+                continue
+            var style = content.getComputedStyle(element)
+            var size = parseFloat(style.fontSize)
+            sizes.set(element, size)
+            if (pass === 0) {
+                if (style.textAlign === "justify")
+                    justified.push(element)
+                else if (style.textAlign === "center" || style.textAlign === "right"
+                         || style.textAlign === "end")
+                    centred.push(element)
+            }
+            var parentSize = sizes.get(element.parentElement)
+            if (parentSize && size < parentSize * 0.9 && !smallTags[element.localName]
+                    && !smallOnPurpose(style, size))
+                shrunk.push(element)
+        }
+        for (var k = 0; k < shrunk.length; ++k) {
+            shrunk[k].style.setProperty("font-size", "1em", "important")
+            shrunk[k].setAttribute("data-anchorman-size", "")
+        }
+        if (shrunk.length === 0)
+            break
     }
     for (var j = 0; j < justified.length; ++j)
         justified[j].style.setProperty("text-align", "start", "important")
-    for (var k = 0; k < shrunk.length; ++k)
-        shrunk[k].style.setProperty("font-size", "1em", "important")
+    for (var c = 0; c < centred.length; ++c)
+        centred[c].style.setProperty("text-indent", "0", "important")
 }
 
 // After a layout QML covers the view until Gecko has painted it; the layout
@@ -311,7 +371,11 @@ function showPage(page) {
         page: page,
         pages: pages,
         firstId: firstSentenceStartingOn(page),
-        fraction: pages > 1 ? page / (pages - 1) : 0
+        fraction: pages > 1 ? page / (pages - 1) : 0,
+        // The WebView enlarges text by itself (measured: 1.6); the settings
+        // page shows its sample at the size the reader sees.
+        textScale: parseFloat(content.getComputedStyle(content.document.body).fontSize)
+                   / state.fontSize
     })
 }
 

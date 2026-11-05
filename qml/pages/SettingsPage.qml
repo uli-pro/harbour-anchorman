@@ -9,6 +9,8 @@ Page {
             app.setFontSize(fontSlider.value)
             app.setPlaybackRate(rateSlider.value)
             app.setFontFamily(fontBox.currentIndex === 1 ? "serif" : "sans")
+            app.setLineHeight(lineSlider.value)
+            app.setParagraphSpacing(spacingSlider.value)
         }
     }
 
@@ -48,6 +50,29 @@ Page {
                 label: qsTr("Text size")
             }
 
+            Slider {
+                id: lineSlider
+                width: parent.width
+                minimumValue: app.minLineHeight
+                maximumValue: app.maxLineHeight
+                stepSize: 0.05
+                value: app.lineHeight
+                valueText: value.toLocaleString(Qt.locale(), "f", 2)
+                label: qsTr("Line spacing")
+            }
+
+            Slider {
+                id: spacingSlider
+                width: parent.width
+                minimumValue: app.minParagraphSpacing
+                maximumValue: app.maxParagraphSpacing
+                stepSize: 0.1
+                value: app.paragraphSpacing
+                //: Space between paragraphs in lines, e.g. "0.5"; 0 means indented paragraphs
+                valueText: value > 0 ? value.toLocaleString(Qt.locale(), "f", 1) : qsTr("Indent")
+                label: qsTr("Paragraph spacing (lines)")
+            }
+
             ComboBox {
                 id: fontBox
                 width: parent.width
@@ -59,14 +84,43 @@ Page {
                 }
             }
 
-            Label {
-                x: Theme.horizontalPageMargin
-                width: parent.width - 2 * x
-                wrapMode: Text.Wrap
-                font.family: fontBox.currentIndex === 1 ? "serif" : "sans-serif"
-                font.pixelSize: fontSlider.value
-                //: Sample text showing the chosen text size
-                text: qsTr("High above the city, on a tall column, stood the statue of the Happy Prince.")
+            // Two paragraphs as the book shows them: font, size, line and
+            // paragraph spacing, or the indent that replaces the latter.
+            Item {
+                width: parent.width
+                height: sample.height + 2 * Theme.paddingLarge
+
+                Column {
+                    id: sample
+
+                    // As large as the reader sees it in the book.
+                    readonly property real size: fontSlider.value * app.textScale
+                    readonly property bool indent: spacingSlider.value === 0
+
+                    x: Theme.horizontalPageMargin
+                    y: Theme.paddingLarge
+                    width: parent.width - 2 * x
+                    spacing: spacingSlider.value * lineSlider.value * size
+
+                    Repeater {
+                        //: Sample text showing the chosen text settings, first and second paragraph
+                        model: [qsTr("High above the city, on a tall column, stood the statue of the Happy Prince."),
+                                qsTr("He was gilded all over with thin leaves of fine gold, for eyes he had two bright sapphires, and a large red ruby glowed on his sword-hilt.")]
+
+                        Label {
+                            width: parent.width
+                            wrapMode: Text.Wrap
+                            // CSS counts line height in font sizes, Qt's proportional
+                            // mode in the font's own (larger) line height.
+                            lineHeightMode: Text.FixedHeight
+                            lineHeight: lineSlider.value * parent.size
+                            font.family: fontBox.currentIndex === 1 ? "serif" : "sans-serif"
+                            font.pixelSize: parent.size
+                            // An em space stands for the indent of 1em.
+                            text: (parent.indent ? "\u2003" : "") + modelData
+                        }
+                    }
+                }
             }
         }
     }
