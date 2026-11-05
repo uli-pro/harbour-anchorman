@@ -29,6 +29,10 @@ ApplicationWindow {
                                                   Number(playbackRateSetting.value) || 1))
     // "light" or "dark" once chosen; "" follows the ambience.
     readonly property string pageColors: pageColorsSetting.value || ""
+    // A cover taken out of a book by Python's cover thread; file is "" if
+    // the book has none that can be shown.
+    signal coverReady(string key, string file)
+
     // The open ReaderPage, for the cover's play button.
     property var reader: null
 
@@ -116,6 +120,7 @@ ApplicationWindow {
         Component.onCompleted: {
             addImportPath(Qt.resolvedUrl("../python"))
             importModule("anchorman.bridge", function () {
+                setHandler("cover", app.coverReady)
                 app.pythonReady = true
             })
         }

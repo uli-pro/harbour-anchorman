@@ -9,22 +9,32 @@ Item {
     property var book
     property string file: ""
 
+    // A cover not yet taken out of the book comes later, as app.coverReady.
     function load() {
         file = ""
         if (!book || !book.cover)
             return
-        var path = book.path
-        py.call("anchorman.bridge.cover", [book.path, book.cover, book.key, app.coversFolder],
+        var key = book.key
+        py.call("anchorman.bridge.request_cover", [book.path, book.cover, key, app.coversFolder],
                 function (result) {
-            // The delegate may have been reused or destroyed meanwhile.
+            // The delegate may have been destroyed or given another book.
             if (typeof coverItem === "undefined" || !coverItem || !coverItem.book
-                    || coverItem.book.path !== path)
+                    || coverItem.book.key !== key)
                 return
-            coverItem.file = result
+            if (result)
+                coverItem.file = result
         })
     }
 
     onBookChanged: load()
+
+    Connections {
+        target: app
+        onCoverReady: {
+            if (coverItem.book && coverItem.book.key === key)
+                coverItem.file = file
+        }
+    }
 
     Rectangle {
         anchors.fill: parent

@@ -1,5 +1,6 @@
 import json
 import os
+import struct
 import unittest
 from unittest import mock
 
@@ -79,15 +80,17 @@ CONTAINER = """<?xml version="1.0"?>
 
 
 def opf(identifier="id-1", title="A Book", creator="<dc:creator>Ann Author</dc:creator>",
-        extra=""):
+        extra="", overlay=False):
     return """<?xml version="1.0"?>
 <package xmlns="http://www.idpf.org/2007/opf" xmlns:dc="http://purl.org/dc/elements/1.1/"
          version="3.0" unique-identifier="uid">
   <metadata><dc:identifier id="uid">{}</dc:identifier><dc:title>{}</dc:title>{}{}</metadata>
-  <manifest><item id="c" href="c.xhtml" media-type="application/xhtml+xml"/>
+  <manifest><item id="c" href="c.xhtml" media-type="application/xhtml+xml"{}/>
+    <item id="s" href="c.smil" media-type="application/smil+xml"/>
     <item id="img" href="cover.png" media-type="image/png" properties="cover-image"/></manifest>
   <spine><itemref idref="c"/></spine>
-</package>""".format(identifier, title, creator, extra)
+</package>""".format(identifier, title, creator, extra,
+                     ' media-overlay="s"' if overlay else "")
 
 
 def write_book(path, package=None, audio=False, cover=b"PNG"):
@@ -105,7 +108,8 @@ class BookInfoTest(TempDirTestCase):
     def test_read_from_the_zip(self):
         path = os.path.join(self.tmp, "b.epub")
         write_book(path, opf(extra='<meta name="calibre:series" content="S"/>'
-                                   '<meta name="calibre:series_index" content="3"/>'), audio=True)
+                                   '<meta name="calibre:series_index" content="3"/>', overlay=True),
+                   audio=True)
         self.assertEqual(book_info(path), {
             "identifier": "id-1", "title": "A Book", "authors": ["Ann Author"], "sort": "Ann Author",
             "series": "S", "index": 3.0, "cover": "OPS/cover.png", "audio": True, "broken": False})
@@ -125,6 +129,21 @@ class BookInfoTest(TempDirTestCase):
                 make_epub(path, content)
             with self.assertRaises(Exception, msg=name):
                 book_info(path)
+
+    def test_drm_listed_as_broken(self):
+        path = os.path.join(self.tmp, "drm.epub")
+        make_epub(path, [("META-INF/container.xml", CONTAINER), ("OPS/p.opf", opf()),
+                         ("META-INF/encryption.xml",
+                          '<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container" '
+                          'xmlns:enc="http://www.w3.org/2001/04/xmlenc#"><enc:EncryptedData>'
+                          '<enc:EncryptionMethod Algorithm="aes"/></enc:EncryptedData></encryption>')])
+        info = book_info(path)
+        self.assertEqual((info["title"], info["broken"]), ("A Book", True))
+
+    def test_smil_without_overlay_is_no_readaloud(self):
+        path = os.path.join(self.tmp, "b.epub")
+        write_book(path, audio=True)
+        self.assertFalse(book_info(path)["audio"])
 
     def test_oversized_package_document(self):
         path = os.path.join(self.tmp, "big.epub")
@@ -150,43 +169,73 @@ class ScanTest(TempDirTestCase):
     def test_reads_only_new_and_changed_books(self):
         a = self.book("a.epub")
         b = self.book("b.epub", package=opf(title="B"))
-        self.assertEqual([e["info"]["title"] for e in scan([self.books], self.cache)], ["A Book", "B"])
+        entries, changed = scan([self.books], self.cache)
+        self.assertEqual([e["info"]["title"] for e in entries], ["A Book", "B"])
+        self.assertTrue(changed)
+        self.assertEqual(scan([self.books], self.cache), (entries, False))
         write_book(b, package=opf(title="B2"))
         os.utime(b, ns=(1, 1))
         os.remove(a)
         with mock.patch("anchorman.library.book_info", wraps=library.book_info) as read:
-            entries = scan([self.books], self.cache)
+            entries, changed = scan([self.books], self.cache)
         self.assertEqual([e["info"]["title"] for e in entries], ["B2"])
+        self.assertTrue(changed)
         self.assertEqual(read.call_count, 1)
         self.assertEqual(load_cached(self.cache), entries)
+
+    def test_other_and_missing_folders_stay_cached(self):
+        other = os.path.join(self.tmp, "card")
+        os.makedirs(other)
+        write_book(os.path.join(other, "c.epub"))
+        self.book("a.epub")
+        scan([self.books, other], self.cache)
+        scan([self.books], self.cache)  # one folder chosen
+        os.rename(other, other + "-out")  # card taken out
+        entries, changed = scan([self.books, other], self.cache)
+        self.assertEqual(len(entries), 1)
+        self.assertFalse(changed)
+        self.assertEqual(len(load_cached(self.cache)), 2)
+
+    def test_read_again_after_a_passing_error(self):
+        path = self.book("a.epub")
+        with mock.patch("anchorman.library.book_info", side_effect=OSError("card gone")):
+            entry = scan([self.books], self.cache)[0][0]
+        self.assertTrue(entry["info"]["broken"])
+        entry = scan([self.books], self.cache)[0][0]
+        self.assertFalse(entry["info"]["broken"])
+        with mock.patch("anchorman.library.book_info", side_effect=EpubError("bad_xml")):
+            os.utime(path, ns=(2, 2))
+            scan([self.books], self.cache)
+        self.assertTrue(scan([self.books], self.cache)[0][0]["info"]["broken"])
 
     def test_fifo_and_folder_are_not_opened(self):
         os.mkfifo(os.path.join(self.books, "pipe.epub"))  # would hang if opened
         os.mkdir(os.path.join(self.books, "folder.epub"))
-        self.assertEqual(scan([self.books], self.cache), [])
+        self.assertEqual(scan([self.books], self.cache)[0], [])
         with self.assertRaises(EpubError):
             book_info(os.path.join(self.books, "pipe.epub"))
 
     def test_broken_book_listed_by_file_name(self):
         write_files(self.books, {"Broken Book.epub": b"no zip"})
-        info = scan([self.books], self.cache)[0]["info"]
+        info = scan([self.books], self.cache)[0][0]["info"]
         self.assertEqual((info["title"], info["broken"]), ("Broken Book", True))
 
     def test_damaged_cache_is_ignored(self):
         self.book("a.epub")
-        for content in ("{", "[]", '{"version": 1, "books": [{"path": 5}]}',
-                        '{"version": 99, "books": []}'):
+        for content in ("{", "[]", '{"version": 2, "books": [{"path": 5}]}',
+                        '{"version": 99, "books": []}', "[" * 100000 + "]" * 100000):
             write_files(os.path.dirname(self.cache), {"library.json": content})
             self.assertEqual(load_cached(self.cache), [])
-            self.assertEqual(len(scan([self.books], self.cache)), 1)
+            self.assertEqual(len(scan([self.books], self.cache)[0]), 1)
 
     def test_entry_with_wrong_types_is_dropped(self):
         self.book("a.epub")
-        entry = scan([self.books], self.cache)[0]
-        entry["info"]["authors"] = [1]
-        write_files(os.path.dirname(self.cache), {"library.json": json.dumps(
-            {"version": 1, "books": [entry]})})
-        self.assertEqual(load_cached(self.cache), [])
+        entry = scan([self.books], self.cache)[0][0]
+        for field, value in (("authors", [1]), ("index", float("nan")), ("index", True)):
+            bad = dict(entry, info=dict(entry["info"], **{field: value}))
+            write_files(os.path.dirname(self.cache), {"library.json": json.dumps(
+                {"version": 2, "books": [bad]})})
+            self.assertEqual(load_cached(self.cache), [], field)
 
 
 class ReplacedTest(unittest.TestCase):
@@ -225,6 +274,14 @@ class CoverTest(TempDirTestCase):
         write_files(covers, {"fedcba9876543210.jpg": "", "other.txt": ""})
         prune_covers(covers, {"0123456789abcdef"})
         self.assertEqual(sorted(os.listdir(covers)), ["0123456789abcdef.png", "other.txt"])
+
+    def test_huge_png_refused(self):
+        path = os.path.join(self.tmp, "b.epub")
+        header = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+        write_book(path, cover=header + struct.pack(">II", 20000, 100) + b"rest")
+        self.assertFalse(extract_cover(path, "OPS/cover.png", os.path.join(self.tmp, "c.png")))
+        write_book(path, cover=header + struct.pack(">II", 1000, 1500) + b"rest")
+        self.assertTrue(extract_cover(path, "OPS/cover.png", os.path.join(self.tmp, "c.png")))
 
     def test_oversized_cover(self):
         path = os.path.join(self.tmp, "b.epub")

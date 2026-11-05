@@ -366,7 +366,7 @@ WebViewPage {
     }
 
     function playFromPage() {
-        if (!ready)
+        if (!ready || !hasAudio)
             return
         var prefer = player.active ? (listening ? player.currentId : "") : resumeId
         flickable.webView.sendAsyncMessage("anchorman:startSentence", { prefer: prefer })
@@ -388,7 +388,7 @@ WebViewPage {
     // page shown.
     function play() {
         // Closing: the page stays until its animation ends.
-        if (player.playing || closed)
+        if (player.playing || closed || !hasAudio)
             return
         if (player.active && barShown)
             player.resume()

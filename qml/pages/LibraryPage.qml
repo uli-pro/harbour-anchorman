@@ -48,8 +48,7 @@ Page {
             py.call("anchorman.bridge.cached_library", [app.libraryCache, chosen], function (view) {
                 if (serial !== scanSerial)
                     return
-                if (view.books.length > 0)
-                    setLibrary(view)
+                setLibrary(view)
                 py.call("anchorman.bridge.scan_library",
                         [chosen, app.libraryCache, app.coversFolder, serial])
             })
@@ -65,7 +64,9 @@ Page {
             loaded = true
             return
         }
-        setLibrary(view)
+        // Nothing new: the list stays where the reader scrolled it.
+        if (!view.unchanged)
+            setLibrary(view)
     }
 
     function setLibrary(view) {
@@ -91,22 +92,23 @@ Page {
         })
     }
 
-    // Like bridge.fold: lower case, without accents.
-    function fold(text) {
-        var plain = { "ä": "a", "ö": "o", "ü": "u", "ß": "ss", "à": "a", "á": "a", "â": "a",
-                      "å": "a", "ç": "c", "è": "e", "é": "e", "ê": "e", "ë": "e", "ì": "i",
-                      "í": "i", "î": "i", "ï": "i", "ñ": "n", "ò": "o", "ó": "o", "ô": "o",
-                      "õ": "o", "ù": "u", "ú": "u", "û": "u" }
-        return text.toLowerCase().replace(/[äöüßàáâåçèéêëìíîïñòóôõùúû]/g, function (c) {
-            return plain[c]
+    // Authors, or with a search the books that have every word in their
+    // authors, title or series. Python folds the words as it folded the books
+    // (ä → a, č → c); JavaScript in Qt 5.6 has no Unicode normalisation.
+    function fillRows() {
+        if (filter.trim() === "") {
+            showRows([])
+            return
+        }
+        var asked = filter
+        py.call("anchorman.bridge.fold", [filter], function (folded) {
+            if (asked === filter)
+                showRows(folded.split(/\s+/).filter(function (w) { return w !== "" }))
         })
     }
 
-    // Authors, or with a search the books that have every word in their
-    // authors, title or series.
-    function fillRows() {
+    function showRows(words) {
         rows.clear()
-        var words = fold(filter).split(/\s+/).filter(function (w) { return w !== "" })
         if (words.length === 0) {
             for (var i = 0; i < authors.length; ++i) {
                 var author = authors[i]
@@ -214,7 +216,7 @@ Page {
                 inputMethodHints: Qt.ImhNoPredictiveText
                 onTextChanged: {
                     page.filter = text
-                    page.fillRows()
+                    searchTimer.restart()
                 }
                 EnterKey.iconSource: "image://theme/icon-m-enter-close"
                 EnterKey.onClicked: focus = false
@@ -297,6 +299,13 @@ Page {
         }
 
         VerticalScrollDecorator { }
+    }
+
+    // Typing fast filters once, not for every letter.
+    Timer {
+        id: searchTimer
+        interval: 250
+        onTriggered: page.fillRows()
     }
 
     BusyLabel {

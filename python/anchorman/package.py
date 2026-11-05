@@ -31,9 +31,10 @@ SpineItem = collections.namedtuple(
 # path is None for headings without a link; level 0 is the top level.
 TocEntry = collections.namedtuple("TocEntry", "title path fragment level")
 # What the library shows. sort is the first author's sort name ("Wilde,
-# Oscar"); series_index is a float or None; cover a path in the book or None.
+# Oscar"); series_index is a float or None; cover a path in the book or None;
+# audio is true if a chapter has narration, by the same rule as read_package.
 BookInfo = collections.namedtuple(
-    "BookInfo", "identifier title authors sort series series_index cover")
+    "BookInfo", "identifier title authors sort series series_index cover audio")
 
 _Item = collections.namedtuple("_Item", "path media_type properties overlay_id")
 
@@ -107,6 +108,7 @@ def read_info(opf, opf_path):
         metadata = opf.makeelement(_OPF + "metadata", {})
     creators = _creators(metadata)
     series, index = _series(metadata)
+    manifest = _read_manifest(opf, opf_path)
     return BookInfo(
         identifier=_identifier(opf, metadata),
         title=_first_text(metadata, _DC + "title"),
@@ -114,7 +116,8 @@ def read_info(opf, opf_path):
         sort=_sort_name(metadata, creators[0]) if creators else "",
         series=series,
         series_index=index,
-        cover=_cover(metadata, _read_manifest(opf, opf_path)))
+        cover=_cover(metadata, manifest),
+        audio=any(item.overlay for item in _read_spine(opf, manifest)))
 
 
 def read_nav(root, nav_path):
@@ -203,6 +206,12 @@ def _check_encryption(root):
         return
     except EpubError:
         raise EpubError("drm", "unreadable encryption.xml")
+    check_encryption(doc)
+
+
+def check_encryption(doc):
+    """Raise EpubError "drm" if the parsed META-INF/encryption.xml encrypts
+    more than embedded fonts."""
     for data in doc.iter(_ENC + "EncryptedData"):
         method = data.find(_ENC + "EncryptionMethod")
         algorithm = method.get("Algorithm", "") if method is not None else ""

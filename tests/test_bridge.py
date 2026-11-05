@@ -1,6 +1,9 @@
 import getpass
 import json
 import os
+import threading
+import time
+import unittest
 from unittest import mock
 
 from anchorman import bridge
@@ -190,13 +193,15 @@ class LibraryViewTest(TempDirTestCase):
             entry("/b/3", "Book 10", ["Ärger, Ann"], "", "Saga", 10.0),
             entry("/b/4", "Alpha", ["Ann Ärger"], "Ärger, Ann"),
             entry("/b/5", "Nobody's", []),
+            entry("/b/7", "Quotes", ["«Q»"], "«Q»"),
             entry("/b/6", "Other", ["bob Brown"], "Brown, Bob", "Alpha Series", None),
         ])
         self.assertEqual([b["path"] for b in view["books"]],
-                         ["/b/2", "/b/3", "/b/4", "/b/1", "/b/6", "/b/5"])
+                         ["/b/7", "/b/2", "/b/3", "/b/4", "/b/1", "/b/6", "/b/5"])
         self.assertEqual([(a["name"], a["letter"], a["count"]) for a in view["authors"]],
-                         [("Ann Ärger", "A", 4), ("bob Brown", "B", 1), ("", "", 1)])
-        self.assertEqual(view["books"][0]["search"], "ann arger book 2 saga")
+                         [("«Q»", "#", 1), ("Ann Ärger", "A", 4), ("bob Brown", "B", 1),
+                          ("", "", 1)])
+        self.assertEqual(view["books"][1]["search"], "ann arger book 2 saga")
         json.dumps(view)
 
     def test_replaced_and_copies(self):
@@ -211,14 +216,17 @@ class LibraryViewTest(TempDirTestCase):
 
     def test_cover(self):
         epub = os.path.join(self.tmp, "b.epub")
-        make_epub(epub, mini_entries())
+        make_epub(epub, mini_entries() + [("OEBPS/cover.jpg", b"JPEG")])
         covers = os.path.join(self.tmp, "covers")
-        path = bridge.cover(epub, "OEBPS/cover.svg", "0123456789abcdef", covers)
-        self.assertEqual(path, os.path.join(covers, "0123456789abcdef.svg"))
-        self.assertTrue(os.path.isfile(path))
-        self.assertEqual(bridge.cover(epub, "OEBPS/cover.svg", "0123456789abcdef", covers), path)
-        self.assertEqual(bridge.cover(epub, "OEBPS/chapter.xhtml", "0123456789abcdef", covers), "")
-        self.assertEqual(bridge.cover(epub, None, "0123456789abcdef", covers), "")
+        name = "0123456789abcdef"
+        with mock.patch.object(bridge, "_covers") as worker:
+            self.assertEqual(bridge.request_cover(epub, "OEBPS/cover.jpg", name, covers), "")
+            worker.submit.assert_called_once_with(name, epub, "OEBPS/cover.jpg", covers)
+        path = bridge.cover(epub, "OEBPS/cover.jpg", name, covers)
+        self.assertEqual(path, os.path.join(covers, name + ".jpg"))
+        self.assertEqual(bridge.request_cover(epub, "OEBPS/cover.jpg", name, covers), path)
+        for cover in ("OEBPS/cover.svg", "OEBPS/chapter.xhtml", None):
+            self.assertEqual(bridge.cover(epub, cover, name, covers), "")
 
     def test_scan_now(self):
         books = os.path.join(self.tmp, "books")
@@ -231,5 +239,31 @@ class LibraryViewTest(TempDirTestCase):
         view = bridge.scan_now([books], cache_file, covers)
         self.assertEqual([b["title"] for b in view["books"]], ["The Happy Prince"])
         self.assertEqual(os.listdir(covers), [])
+        self.assertEqual(bridge.scan_now([books], cache_file, covers), {"unchanged": True})
         self.assertEqual(bridge.cached_library(cache_file, [books]), view)
         self.assertEqual(bridge.cached_library(cache_file, [books + "x"])["books"], [])
+
+
+class WorkerTest(unittest.TestCase):
+
+    def test_newest_first_once_per_key_within_limit(self):
+        ran = []
+        gate = threading.Event()
+        done = threading.Event()
+
+        def run(key, value):
+            if key == "first":
+                gate.wait(5)
+            ran.append(value)
+            if len(ran) == 4:
+                done.set()
+
+        worker = bridge.Worker(run, limit=3)
+        worker.submit("first", 0)
+        time.sleep(0.1)  # the thread is busy with "first" now
+        for key, value in (("a", 1), ("b", 2), ("a", 3), ("c", 4), ("d", 5)):
+            worker.submit(key, value)
+        gate.set()
+        self.assertTrue(done.wait(5))
+        # "a" replaced by its newer request, "b" dropped over the limit.
+        self.assertEqual(ran, [0, 5, 4, 3])

@@ -4,24 +4,34 @@ of them, kept in a cache file so that a memory card is not read again."""
 import collections
 import hashlib
 import json
+import math
 import os
 import re
 import stat
+import struct
 import zipfile
 
 from .errors import EpubError
-from .package import package_path, read_info
+from .package import check_encryption, package_path, read_info
 from .xmlutil import MAX_XML_SIZE, parse_xml_data
 
 MAX_CACHE_SIZE = 16 * 1024 * 1024
 MAX_COVER_SIZE = 5 * 1024 * 1024
-_CACHE_VERSION = 1
+# PNG and GIF are decoded at full size before they are scaled down; a small
+# file can hold a huge image. JPEG is decoded scaled.
+MAX_COVER_PIXELS = 4096
+_CACHE_VERSION = 2
+# Errors that say something about the book. Others (a card pulled out, no
+# memory) may pass, so the book is read again next time.
+_BOOK_ERRORS = (EpubError, zipfile.BadZipFile, zipfile.LargeZipFile, KeyError, ValueError,
+                EOFError, NotImplementedError, RuntimeError)
+_UNREAD = [-1, -1]
 # Prefixes of the same identifier: Storyteller writes "uuid:…" where the
 # book it started from had "urn:uuid:…" or nothing.
 _ID_PREFIXES = ("urn:", "uuid:", "url:", "asin:")
 _COVER_FILE = re.compile(r"^([0-9a-f]{16})(\.[a-z]+)?(\.part)?$")
 _INFO_FIELDS = {"identifier": str, "title": str, "authors": list, "sort": str,
-                "series": str, "index": (int, float, type(None)),
+                "series": str, "index": (float, type(None)),
                 "cover": (str, type(None)), "audio": bool, "broken": bool}
 
 BookFile = collections.namedtuple("BookFile", "path name")
@@ -72,19 +82,24 @@ def card_folders(media_root):
 def book_info(path):
     """The library entry of the EPUB at path, read without unpacking.
 
-    Raises EpubError, OSError or zipfile errors if the book is unusable.
+    Raises EpubError, OSError or zipfile errors if the book is unusable. A
+    book with DRM is listed, marked broken: opening it says why.
     """
-    if not stat.S_ISREG(os.stat(path).st_mode):
-        raise EpubError("not_epub", "not a regular file")
-    with zipfile.ZipFile(path) as archive:
-        audio = any(name.lower().endswith(".smil") for name in archive.namelist())
+    with _open_regular(path) as f, zipfile.ZipFile(f) as archive:
         container = parse_xml_data(_member(archive, "META-INF/container.xml"),
                                    "META-INF/container.xml")
         opf_path = package_path(container)
         info = read_info(parse_xml_data(_member(archive, opf_path), opf_path), opf_path)
+        broken = False
+        if "META-INF/encryption.xml" in archive.namelist():
+            try:
+                check_encryption(parse_xml_data(_member(archive, "META-INF/encryption.xml"),
+                                                "META-INF/encryption.xml"))
+            except EpubError:
+                broken = True
     return {"identifier": info.identifier, "title": info.title, "authors": info.authors,
             "sort": info.sort, "series": info.series, "index": info.series_index,
-            "cover": info.cover, "audio": audio, "broken": False}
+            "cover": info.cover, "audio": info.audio, "broken": broken}
 
 
 def broken_info(path):
@@ -96,12 +111,17 @@ def broken_info(path):
 
 
 def scan(folders, cache_file):
-    """All EPUBs below folders as [{path, stamp, info}].
+    """All EPUBs below folders as ([{path, stamp, info}], changed).
 
     Only files that are new or changed since the cache file was written are
     read; reading every book from a memory card took 93 s on the device.
+    The cache keeps the books of other folders and of folders that are
+    missing now, e.g. a memory card taken out. changed is false if the
+    entries are those of the cache.
     """
-    cached = {entry["path"]: entry for entry in load_cached(cache_file)}
+    cached = load_cached(cache_file)
+    walked = tuple(os.path.join(folder, "") for folder in folders if os.path.isdir(folder))
+    known = {e["path"]: e for e in cached if e["path"].startswith(walked)}
     entries = []
     changed = False
     for book in list_books(folders):
@@ -112,19 +132,30 @@ def scan(folders, cache_file):
         if not stat.S_ISREG(st.st_mode):
             continue
         stamp = [st.st_size, st.st_mtime_ns]
-        old = cached.get(book.path)
+        old = known.get(book.path)
         if old is not None and old["stamp"] == stamp:
             info = old["info"]
         else:
             changed = True
             try:
                 info = book_info(book.path)
+            except _BOOK_ERRORS:
+                info = broken_info(book.path)
             except Exception:
                 info = broken_info(book.path)
+                stamp = _UNREAD
         entries.append({"path": book.path, "stamp": stamp, "info": info})
-    if changed or len(entries) != len(cached):
-        _save_cache(cache_file, entries)
-    return entries
+    # A folder gone during the walk, e.g. a card pulled out: what was seen
+    # of it may be incomplete, so its books stay as they were.
+    gone = tuple(folder for folder in walked if not os.path.isdir(folder))
+    if gone:
+        entries = ([e for e in entries if not e["path"].startswith(gone)]
+                   + [e for e in known.values() if e["path"].startswith(gone)])
+    changed = changed or {e["path"] for e in entries} != set(known)
+    if changed:
+        others = [e for e in cached if e["path"] not in known]
+        _save_cache(cache_file, others + entries)
+    return entries, changed
 
 
 def load_cached(cache_file):
@@ -136,7 +167,7 @@ def load_cached(cache_file):
         if len(data) > MAX_CACHE_SIZE:
             return []
         stored = json.loads(data.decode("utf-8"))
-    except (OSError, ValueError):
+    except (OSError, ValueError, RecursionError):
         return []
     if not isinstance(stored, dict) or stored.get("version") != _CACHE_VERSION:
         return []
@@ -175,9 +206,11 @@ def extract_cover(epub_path, cover, target):
     Returns False if there is no usable image; the library then shows none.
     """
     try:
-        with zipfile.ZipFile(epub_path) as archive:
+        with _open_regular(epub_path) as f, zipfile.ZipFile(f) as archive:
             data = _member(archive, cover, MAX_COVER_SIZE)
     except Exception:
+        return False
+    if not _small_image(data):
         return False
     tmp = target + ".part"
     try:
@@ -209,6 +242,30 @@ def prune_covers(covers_dir, names):
                 os.remove(os.path.join(covers_dir, name))
             except OSError:
                 pass
+
+
+def _small_image(data):
+    """False for PNG and GIF images larger than MAX_COVER_PIXELS a side."""
+    if data[:8] == b"\x89PNG\r\n\x1a\n" and len(data) >= 24:
+        width, height = struct.unpack(">II", data[16:24])
+    elif data[:6] in (b"GIF87a", b"GIF89a") and len(data) >= 10:
+        width, height = struct.unpack("<HH", data[6:10])
+    else:
+        return True
+    return width <= MAX_COVER_PIXELS and height <= MAX_COVER_PIXELS
+
+
+def _open_regular(path):
+    """Open path for reading only if it is a regular file. Opened without
+    blocking first: a FIFO put in place of a book would block forever."""
+    fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise EpubError("not_epub", "not a regular file")
+        return os.fdopen(fd, "rb")
+    except BaseException:
+        os.close(fd)
+        raise
 
 
 def _member(archive, name, max_size=MAX_XML_SIZE):
@@ -253,4 +310,5 @@ def _valid_entry(entry):
         return False
     info = entry["info"]
     return (all(isinstance(info.get(field), kind) for field, kind in _INFO_FIELDS.items())
-            and all(isinstance(a, str) for a in info["authors"]))
+            and all(isinstance(a, str) for a in info["authors"])
+            and (info["index"] is None or math.isfinite(info["index"])))

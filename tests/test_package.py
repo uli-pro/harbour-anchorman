@@ -381,7 +381,7 @@ class InfoTest(TempDirTestCase):
             '<meta name="cover" content="img"/>',
             CHAPTER + '<item id="img" href="cover.jpg" media-type="image/jpeg"/>')
         self.assertEqual(info, BookInfo("urn:uuid:1", "Shogun", ["James Clavell"], "Clavell, James",
-                                        "The Asian Saga", 1.0, "OPS/cover.jpg"))
+                                        "The Asian Saga", 1.0, "OPS/cover.jpg", False))
 
     def test_epub3(self):
         info = self.info(
