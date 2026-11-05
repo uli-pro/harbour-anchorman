@@ -50,6 +50,8 @@ WebViewPage {
     property string resumeId: ""
     readonly property bool listening: player.active && player.chapter === chapter
     readonly property bool playing: player.playing
+    // For the lock screen and headphone controls.
+    readonly property string coverUrl: book.cover ? player.fileUrl(book.cover) : ""
     property double savedAt: 0
     // Left for the library: the page is going, and must neither lay out
     // nor save again (it would save the top of the page over the sentence).
@@ -364,12 +366,36 @@ WebViewPage {
     }
 
     function togglePlay() {
-        if (player.playing) {
-            player.pause()
-            savePosition()
-        } else {
+        if (player.playing)
+            pause()
+        else
             playFromPage()
-        }
+    }
+
+    // From the lock screen or headphones: on where it paused, without a
+    // round trip to the page, which nobody looks at.
+    function play() {
+        if (player.playing)
+            return
+        if (player.active && barShown)
+            player.resume()
+        else
+            playFromPage()
+    }
+
+    function pause() {
+        if (!player.playing)
+            return
+        player.pause()
+        savePosition()
+    }
+
+    function nextSentence() {
+        player.next()
+    }
+
+    function previousSentence() {
+        player.previous()
     }
 
     function followSentence(index, i) {

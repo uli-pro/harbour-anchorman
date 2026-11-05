@@ -3,6 +3,7 @@ import Sailfish.Silica 1.0
 import Sailfish.WebEngine 1.0
 import Nemo.Configuration 1.0
 import io.thp.pyotherside 1.5
+import "components"
 import "pages"
 
 ApplicationWindow {
@@ -90,6 +91,8 @@ ApplicationWindow {
         key: "/apps/harbour-anchorman/playbackRate"
         defaultValue: 1
     }
+
+    MediaControls { }
 
     Python {
         id: py

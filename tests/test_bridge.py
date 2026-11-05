@@ -53,6 +53,7 @@ class BridgeTest(TempDirTestCase):
         self.assertEqual(book["authors"], ["Wilde, Oscar"])
         self.assertEqual(book["language"], "en")
         self.assertEqual(book["duration"], 39000)
+        self.assertEqual(book["cover"], "OEBPS/cover.svg")
         self.assertEqual(book["activeClass"], "-epub-media-overlay-active")
         self.assertEqual(book["spine"], [
             {"path": "OEBPS/title.xhtml", "overlay": None, "linear": True},
@@ -63,6 +64,10 @@ class BridgeTest(TempDirTestCase):
              "level": 0, "spine": 0},
             {"title": "The Happy Prince.", "path": "OEBPS/chapter.xhtml",
              "fragment": "chap01", "level": 0, "spine": 1}])
+
+    def test_missing_cover(self):
+        make_epub(self.epub, [entry for entry in mini_entries() if entry[0] != "OEBPS/cover.svg"])
+        self.assertIsNone(bridge.open_book(self.epub, self.cache_dir)["cover"])
 
     def test_toc_entry_outside_spine(self):
         entries = [(name, data.replace(b'href="title.xhtml"', b'href="extra.xhtml"'))
