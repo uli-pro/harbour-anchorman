@@ -6,7 +6,7 @@ class EpubError(Exception):
 
     code is a fixed English keyword that QML maps to a translated message:
     not_zip, not_epub, too_many_files, too_large, no_space, unsafe_path,
-    bad_xml, forbidden_dtd, bad_package, bad_overlay.
+    bad_xml, forbidden_dtd, bad_package, bad_overlay, drm.
     detail is a short English text for the log, e.g. the file concerned.
     """
 

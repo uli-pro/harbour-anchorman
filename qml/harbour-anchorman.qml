@@ -14,6 +14,8 @@ ApplicationWindow {
     readonly property string libraryFolder: libraryFolderSetting.value || ""
     readonly property string cacheFolder: StandardPaths.cache + "/books"
     readonly property string positionsFile: StandardPaths.data + "/positions.json"
+    readonly property string libraryCache: StandardPaths.cache + "/library.json"
+    readonly property string coversFolder: StandardPaths.cache + "/covers"
     // Text size in screen pixels, like FBReader; the frame script converts
     // it to CSS pixels.
     readonly property int minFontSize: 20
@@ -27,6 +29,10 @@ ApplicationWindow {
                                                   Number(playbackRateSetting.value) || 1))
     // "light" or "dark" once chosen; "" follows the ambience.
     readonly property string pageColors: pageColorsSetting.value || ""
+    // A cover taken out of a book by Python's cover thread; file is "" if
+    // the book has none that can be shown.
+    signal coverReady(string key, string file)
+
     // The open ReaderPage, for the cover's play button.
     property var reader: null
 
@@ -59,6 +65,8 @@ ApplicationWindow {
             return qsTr("Not enough free space to open this book.")
         case "unsafe_path":
             return qsTr("This book contains unsafe file names and was not opened.")
+        case "drm":
+            return qsTr("This book is protected by DRM and cannot be opened.")
         case "io":
             return qsTr("The book could not be read.")
         default:
@@ -112,6 +120,7 @@ ApplicationWindow {
         Component.onCompleted: {
             addImportPath(Qt.resolvedUrl("../python"))
             importModule("anchorman.bridge", function () {
+                setHandler("cover", app.coverReady)
                 app.pythonReady = true
             })
         }

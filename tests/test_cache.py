@@ -52,15 +52,17 @@ class OpenBookTest(TempDirTestCase):
         os.utime(epub, (1000, 1000))
         self.assertNotEqual(cache.book_key(epub), key)
 
-    def test_keeps_the_two_most_recent_books(self):
+    def test_keeps_the_three_most_recent_books(self):
         epub_a = self.epub("a.epub")
         a = self.open(epub_a)
-        self.age(a, 300)
+        self.age(a, 400)
         b = self.open(self.epub("b.epub"))
-        self.age(b, 200)
-        self.open(epub_a)  # a is newest now
+        self.age(b, 300)
         c = self.open(self.epub("c.epub"))
-        self.assertEqual(self.books(), sorted(os.path.basename(p) for p in (a, c)))
+        self.age(c, 200)
+        self.open(epub_a)  # a is newest now
+        d = self.open(self.epub("d.epub"))
+        self.assertEqual(self.books(), sorted(os.path.basename(p) for p in (a, c, d)))
 
     def test_keep_one(self):
         self.open(self.epub("a.epub"), keep=1)
@@ -117,9 +119,9 @@ class OpenBookTest(TempDirTestCase):
         self.assertEqual(cache.open_book(epub, self.cache_dir, len), (root, len(root)))
 
     def test_makes_room_when_space_is_short(self):
-        a = self.open(self.epub("a.epub"))
+        a = self.open(self.epub("a.epub"), keep=2)
         self.age(a, 300)
-        b = self.open(self.epub("b.epub"))
+        b = self.open(self.epub("b.epub"), keep=2)
         real_extract = cache.archive.extract
         calls = []
 
@@ -130,7 +132,7 @@ class OpenBookTest(TempDirTestCase):
             real_extract(epub_path, dest_dir)
 
         with mock.patch.object(cache.archive, "extract", extract):
-            c = self.open(self.epub("c.epub"))
+            c = self.open(self.epub("c.epub"), keep=2)
         names = [os.path.basename(p) for p in (a, b, c)]
         self.assertEqual(calls, [sorted(names[:2]), [names[1]]])
         self.assertEqual(self.books(), sorted(names[1:]))

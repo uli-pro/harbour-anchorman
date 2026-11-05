@@ -9,7 +9,7 @@ CoverBackground {
     }
 
     CoverActionList {
-        enabled: app.reader !== null
+        enabled: app.reader !== null && app.reader.hasAudio
 
         CoverAction {
             iconSource: app.reader && app.reader.playing ? "image://theme/icon-cover-pause"

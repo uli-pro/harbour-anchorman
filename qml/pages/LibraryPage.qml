@@ -1,6 +1,7 @@
 import QtQuick 2.0
 import Sailfish.Silica 1.0
 import Sailfish.Pickers 1.0
+import "../components"
 
 Page {
     id: page
@@ -8,41 +9,128 @@ Page {
     property bool loaded: false
     property bool opening: false
     property bool resumed: false
-    property bool searching: false
-    // Only the answer to the latest search counts.
-    property int searchSerial: 0
+    property bool scanning: false
+    // Only the answer to the latest scan counts.
+    property int scanSerial: 0
     property var defaultFolders: []
+    // From bridge.library_view: books in order, authors with their group.
+    property var books: []
+    property var authors: []
+    property var recent: []
+    property string filter: ""
 
-    // Python handles one call after the other: searching a memory card
-    // first would delay the book read last. So that book opens first, and
-    // the library is searched when it is shown.
+    // Python handles one call after the other: reading the library first
+    // would delay the book read last. So that book opens first, and the
+    // library is read when it is shown.
     function start() {
         if (!app.pythonReady || resumed)
             return
         resumed = true
+        py.setHandler("library", page.scanned)
         py.call("anchorman.bridge.load_last_book", [app.positionsFile], function (path) {
             if (path)
                 openBook(path, true)
             else
-                search()
+                showLibrary()
         })
     }
 
-    function search() {
-        var serial = ++searchSerial
-        searching = true
+    // At once from the cache, then the books are looked at again; on a
+    // memory card that can take a minute.
+    function showLibrary() {
+        var serial = ++scanSerial
+        scanning = true
         py.call("anchorman.bridge.default_folders", [StandardPaths.documents], function (folders) {
-            if (serial !== searchSerial)
+            if (serial !== scanSerial)
                 return
             defaultFolders = folders
             var chosen = app.libraryFolder ? [app.libraryFolder] : folders
-            py.call("anchorman.bridge.list_books", [chosen], function (books) {
-                if (serial !== searchSerial)
+            py.call("anchorman.bridge.cached_library", [app.libraryCache, chosen], function (view) {
+                if (serial !== scanSerial)
                     return
-                listView.model = books
-                loaded = true
-                searching = false
+                setLibrary(view)
+                py.call("anchorman.bridge.scan_library",
+                        [chosen, app.libraryCache, app.coversFolder, serial])
             })
+        })
+    }
+
+    function scanned(serial, view) {
+        if (serial !== scanSerial)
+            return
+        scanning = false
+        if (view.error) {
+            console.warn("Cannot read the library", view.error, view.detail)
+            loaded = true
+            return
+        }
+        // Nothing new: the list stays where the reader scrolled it.
+        if (!view.unchanged)
+            setLibrary(view)
+    }
+
+    function setLibrary(view) {
+        books = view.books
+        authors = view.authors
+        loaded = true
+        fillRows()
+        updateRecent()
+    }
+
+    function updateRecent() {
+        py.call("anchorman.bridge.recent_books", [app.positionsFile], function (paths) {
+            var found = []
+            for (var i = 0; i < paths.length; ++i) {
+                for (var j = 0; j < books.length; ++j) {
+                    if (books[j].path === paths[i]) {
+                        found.push(books[j])
+                        break
+                    }
+                }
+            }
+            recent = found
+        })
+    }
+
+    // Authors, or with a search the books that have every word in their
+    // authors, title or series. Python folds the words as it folded the books
+    // (ä → a, č → c); JavaScript in Qt 5.6 has no Unicode normalisation.
+    function fillRows() {
+        if (filter.trim() === "") {
+            showRows([])
+            return
+        }
+        var asked = filter
+        py.call("anchorman.bridge.fold", [filter], function (folded) {
+            if (asked === filter)
+                showRows(folded.split(/\s+/).filter(function (w) { return w !== "" }))
+        })
+    }
+
+    function showRows(words) {
+        rows.clear()
+        if (words.length === 0) {
+            for (var i = 0; i < authors.length; ++i) {
+                var author = authors[i]
+                rows.append({ group: author.group, name: author.name, count: author.count,
+                              letter: author.letter || "?", bookIndex: -1 })
+            }
+            return
+        }
+        for (var j = 0; j < books.length; ++j) {
+            var book = books[j]
+            var matches = words.every(function (w) { return book.search.indexOf(w) >= 0 })
+            if (matches)
+                rows.append({ group: book.group, name: book.author, count: 0, letter: "",
+                              bookIndex: j })
+        }
+    }
+
+    function showAuthor(group, focusPath) {
+        var list = books.filter(function (book) { return book.group === group })
+        pageStack.push(Qt.resolvedUrl("AuthorPage.qml"), {
+            library: page, name: list.length > 0 ? list[0].author : "", books: list,
+            focusPath: focusPath || ""
         })
     }
 
@@ -56,7 +144,7 @@ Page {
                 if (!resuming)
                     app.showError(app.errorText(book.error))
                 else if (!loaded)
-                    search()
+                    showLibrary()
                 return
             }
             py.call("anchorman.bridge.save_last_book", [app.positionsFile, path])
@@ -65,10 +153,14 @@ Page {
         })
     }
 
-    // Searched once when first shown; again on Refresh or a new folder.
     onStatusChanged: {
-        if (status === PageStatus.Activating && resumed && !loaded && !searching && !opening)
-            search()
+        if (status !== PageStatus.Activating || !resumed || opening)
+            return
+        // Read once when first shown; again on Refresh or a new folder.
+        if (!loaded && !scanning)
+            showLibrary()
+        else
+            updateRecent()
     }
 
     Component.onCompleted: start()
@@ -76,7 +168,7 @@ Page {
     Connections {
         target: app
         onPythonReadyChanged: page.start()
-        onLibraryFolderChanged: page.search()
+        onLibraryFolderChanged: page.showLibrary()
     }
 
     SilicaListView {
@@ -85,9 +177,13 @@ Page {
         anchors.fill: parent
         opacity: opening ? 0.3 : 1
         enabled: !opening
+        model: ListModel { id: rows }
+        // Otherwise the current item takes the focus from the search field
+        // whenever the rows change.
+        currentIndex: -1
 
         PullDownMenu {
-            busy: searching
+            busy: scanning
 
             MenuItem {
                 text: qsTr("Book folder")
@@ -103,48 +199,116 @@ Page {
             }
             MenuItem {
                 text: qsTr("Refresh")
-                onClicked: search()
+                onClicked: showLibrary()
             }
         }
 
-        header: PageHeader {
-            title: qsTr("Library")
-            description: app.libraryFolder ? app.libraryFolder.replace(/\/+$/, "").split("/").pop()
-                                           : qsTr("Documents and memory cards")
+        header: Column {
+            width: listView.width
+
+            PageHeader {
+                title: qsTr("Library")
+                description: app.libraryFolder ? app.libraryFolder.replace(/\/+$/, "").split("/").pop()
+                                               : qsTr("Documents and memory cards")
+            }
+
+            SearchField {
+                width: parent.width
+                //: Search field of the library
+                placeholderText: qsTr("Author, title or series")
+                inputMethodHints: Qt.ImhNoPredictiveText
+                onTextChanged: {
+                    page.filter = text
+                    searchTimer.restart()
+                }
+                EnterKey.iconSource: "image://theme/icon-m-enter-close"
+                EnterKey.onClicked: focus = false
+            }
+
+            SectionHeader {
+                visible: page.filter === "" && page.recent.length > 0
+                text: qsTr("Continue reading")
+            }
+
+            Repeater {
+                model: page.filter === "" ? page.recent : []
+
+                BookItem {
+                    width: listView.width
+                    book: modelData
+                    detail: modelData.author
+                    onClicked: page.openBook(modelData.path, false)
+                }
+            }
         }
 
-        delegate: ListItem {
-            contentHeight: Theme.itemSizeMedium
+        section.property: page.filter === "" ? "letter" : ""
+        section.delegate: SectionHeader {
+            text: section === "?" ? qsTr("Unknown author") : section
+        }
 
-            Column {
-                x: Theme.horizontalPageMargin
-                width: parent.width - 2 * x
-                anchors.verticalCenter: parent.verticalCenter
+        // An author, or with a search a book.
+        delegate: Item {
+            width: listView.width
+            height: model.bookIndex < 0 ? authorRow.height : bookRow.height
+
+            BackgroundItem {
+                id: authorRow
+
+                visible: model.bookIndex < 0
+                width: parent.width
+                height: Theme.itemSizeSmall
+                onClicked: page.showAuthor(model.group, "")
 
                 Label {
-                    width: parent.width
-                    text: modelData.name
+                    x: Theme.horizontalPageMargin
+                    width: parent.width - 2 * x - countLabel.width - Theme.paddingMedium
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: model.name || qsTr("Unknown author")
                     truncationMode: TruncationMode.Fade
-                    color: highlighted ? Theme.highlightColor : Theme.primaryColor
+                    color: authorRow.highlighted ? Theme.highlightColor : Theme.primaryColor
                 }
+
                 Label {
-                    // Tells two copies of a book apart.
-                    text: modelData.removable ? qsTr("SD card") : qsTr("Device")
-                    font.pixelSize: Theme.fontSizeExtraSmall
-                    color: highlighted ? Theme.secondaryHighlightColor : Theme.secondaryColor
+                    id: countLabel
+
+                    anchors {
+                        right: parent.right
+                        rightMargin: Theme.horizontalPageMargin
+                        verticalCenter: parent.verticalCenter
+                    }
+                    text: model.count
+                    font.pixelSize: Theme.fontSizeSmall
+                    color: authorRow.highlighted ? Theme.secondaryHighlightColor : Theme.secondaryColor
                 }
             }
 
-            onClicked: page.openBook(modelData.path, false)
+            BookItem {
+                id: bookRow
+
+                visible: model.bookIndex >= 0
+                width: parent.width
+                book: model.bookIndex >= 0 ? page.books[model.bookIndex] : null
+                detail: model.name || qsTr("Unknown author")
+                onClicked: page.showAuthor(model.group, book.path)
+            }
         }
 
         ViewPlaceholder {
-            enabled: page.loaded && !searching && listView.count === 0
-            text: qsTr("No books")
-            hintText: qsTr("Copy EPUB readalouds with narration to Documents or a memory card, or choose another book folder in the pulley menu")
+            enabled: page.loaded && !scanning && listView.count === 0
+            text: page.filter !== "" ? qsTr("Nothing found") : qsTr("No books")
+            hintText: page.filter !== "" ? ""
+                      : qsTr("Copy EPUB books to Documents or a memory card, or choose another book folder in the pulley menu")
         }
 
         VerticalScrollDecorator { }
+    }
+
+    // Typing fast filters once, not for every letter.
+    Timer {
+        id: searchTimer
+        interval: 250
+        onTriggered: page.fillRows()
     }
 
     BusyLabel {
@@ -153,7 +317,7 @@ Page {
     }
 
     BusyLabel {
-        running: searching && !opening && listView.count === 0
+        running: scanning && !opening && listView.count === 0
         text: qsTr("Searching for books")
     }
 

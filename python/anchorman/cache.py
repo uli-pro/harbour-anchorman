@@ -9,8 +9,8 @@ from . import archive
 from .errors import EpubError
 
 # Every book takes its space twice while unpacked, so only the books the
-# reader switches between stay in the cache.
-KEEP = 2
+# reader switches between stay in the cache: those listed to read on.
+KEEP = 3
 
 _KEY = re.compile(r"^[0-9a-f]{16}(\.part)?$")
 

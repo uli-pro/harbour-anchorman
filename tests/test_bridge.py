@@ -1,6 +1,9 @@
 import getpass
 import json
 import os
+import threading
+import time
+import unittest
 from unittest import mock
 
 from anchorman import bridge
@@ -29,12 +32,6 @@ class BridgeTest(TempDirTestCase):
         self.cache_dir = os.path.join(self.tmp, "cache")
         self.epub = os.path.join(self.tmp, "happy-prince.epub")
         make_epub(self.epub, mini_entries())
-
-    def test_list_books(self):
-        # Only readalouds: the mini book has a SMIL file, the other none.
-        write_files(self.tmp, {"plain.epub": "not a zip"})
-        self.assertEqual(bridge.list_books([self.tmp]),
-                         [{"path": self.epub, "name": "happy-prince", "removable": False}])
 
     def test_default_folders(self):
         user = getpass.getuser()
@@ -179,3 +176,94 @@ class BridgeTest(TempDirTestCase):
         path = os.path.join(self.tmp, "file", "positions.json")
         result = bridge.save_position(path, "book", {"spine": 0, "id": "", "fraction": 0})
         self.assertEqual(result["error"], "io")
+
+
+def entry(path, title, authors=(), sort="", series="", index=None, identifier="", audio=False):
+    return {"path": path, "stamp": [1, 2], "info": {
+        "identifier": identifier, "title": title, "authors": list(authors), "sort": sort,
+        "series": series, "index": index, "cover": None, "audio": audio, "broken": False}}
+
+
+class LibraryViewTest(TempDirTestCase):
+
+    def test_order_and_authors(self):
+        view = bridge.library_view([
+            entry("/b/1", "Zoo", ["Ann Ärger"], "Ärger, Ann"),
+            entry("/b/2", "Book 2", ["Ann Ärger"], "Ärger, Ann", "Saga", 2.0),
+            entry("/b/3", "Book 10", ["Ärger, Ann"], "", "Saga", 10.0),
+            entry("/b/4", "Alpha", ["Ann Ärger"], "Ärger, Ann"),
+            entry("/b/5", "Nobody's", []),
+            entry("/b/7", "Quotes", ["«Q»"], "«Q»"),
+            entry("/b/6", "Other", ["bob Brown"], "Brown, Bob", "Alpha Series", None),
+        ])
+        self.assertEqual([b["path"] for b in view["books"]],
+                         ["/b/7", "/b/2", "/b/3", "/b/4", "/b/1", "/b/6", "/b/5"])
+        self.assertEqual([(a["name"], a["letter"], a["count"]) for a in view["authors"]],
+                         [("«Q»", "#", 1), ("Ann Ärger", "A", 4), ("bob Brown", "B", 1),
+                          ("", "", 1)])
+        self.assertEqual(view["books"][1]["search"], "ann arger book 2 saga")
+        json.dumps(view)
+
+    def test_replaced_and_copies(self):
+        view = bridge.library_view([
+            entry("/card/a", "T", ["A"], identifier="urn:uuid:x"),
+            entry("/card/b", "T", ["A"], identifier="uuid:x", audio=True),
+            entry("/card/c", "U", ["A"], identifier="y"),
+            entry("/home/c", "U", ["A"], identifier="y"),
+        ])
+        self.assertEqual([(b["path"], b["duplicate"]) for b in view["books"]],
+                         [("/card/b", False), ("/card/c", True), ("/home/c", True)])
+
+    def test_cover(self):
+        epub = os.path.join(self.tmp, "b.epub")
+        make_epub(epub, mini_entries() + [("OEBPS/cover.jpg", b"JPEG")])
+        covers = os.path.join(self.tmp, "covers")
+        name = "0123456789abcdef"
+        with mock.patch.object(bridge, "_covers") as worker:
+            self.assertEqual(bridge.request_cover(epub, "OEBPS/cover.jpg", name, covers), "")
+            worker.submit.assert_called_once_with(name, epub, "OEBPS/cover.jpg", covers)
+        path = bridge.cover(epub, "OEBPS/cover.jpg", name, covers)
+        self.assertEqual(path, os.path.join(covers, name + ".jpg"))
+        self.assertEqual(bridge.request_cover(epub, "OEBPS/cover.jpg", name, covers), path)
+        for cover in ("OEBPS/cover.svg", "OEBPS/chapter.xhtml", None):
+            self.assertEqual(bridge.cover(epub, cover, name, covers), "")
+
+    def test_scan_now(self):
+        books = os.path.join(self.tmp, "books")
+        os.makedirs(books)
+        make_epub(os.path.join(books, "b.epub"), mini_entries())
+        covers = os.path.join(self.tmp, "covers")
+        os.makedirs(covers)
+        open(os.path.join(covers, "fedcba9876543210.png"), "w").close()
+        cache_file = os.path.join(self.tmp, "library.json")
+        view = bridge.scan_now([books], cache_file, covers)
+        self.assertEqual([b["title"] for b in view["books"]], ["The Happy Prince"])
+        self.assertEqual(os.listdir(covers), [])
+        self.assertEqual(bridge.scan_now([books], cache_file, covers), {"unchanged": True})
+        self.assertEqual(bridge.cached_library(cache_file, [books]), view)
+        self.assertEqual(bridge.cached_library(cache_file, [books + "x"])["books"], [])
+
+
+class WorkerTest(unittest.TestCase):
+
+    def test_newest_first_once_per_key_within_limit(self):
+        ran = []
+        gate = threading.Event()
+        done = threading.Event()
+
+        def run(key, value):
+            if key == "first":
+                gate.wait(5)
+            ran.append(value)
+            if len(ran) == 4:
+                done.set()
+
+        worker = bridge.Worker(run, limit=3)
+        worker.submit("first", 0)
+        time.sleep(0.1)  # the thread is busy with "first" now
+        for key, value in (("a", 1), ("b", 2), ("a", 3), ("c", 4), ("d", 5)):
+            worker.submit(key, value)
+        gate.set()
+        self.assertTrue(done.wait(5))
+        # "a" replaced by its newer request, "b" dropped over the limit.
+        self.assertEqual(ran, [0, 5, 4, 3])

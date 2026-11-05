@@ -19,10 +19,10 @@ MprisPlayer {
     // Fixed: Amber does not pass a later change of CanControl on, and false
     // also turns off CanPlay and CanPause (seen on the device).
     canControl: true
-    canPlay: reader !== null
-    canPause: reader !== null
-    canGoNext: reader !== null
-    canGoPrevious: reader !== null
+    canPlay: reader !== null && reader.hasAudio
+    canPause: reader !== null && reader.hasAudio
+    canGoNext: reader !== null && reader.hasAudio
+    canGoPrevious: reader !== null && reader.hasAudio
     // The narration is a sequence of sentences across several files, not
     // one track with a position.
     canSeek: false

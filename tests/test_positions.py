@@ -119,3 +119,35 @@ class LastBookTest(TempDirTestCase):
         with open(self.path, "w") as f:
             json.dump({"books": {}, "last": 5}, f)
         self.assertIsNone(positions.load_last(self.path))
+
+
+class RecentTest(TempDirTestCase):
+
+    def setUp(self):
+        super().setUp()
+        self.path = os.path.join(self.tmp, "positions.json")
+        self.epubs = []
+        for name in "abcd":
+            epub = os.path.join(self.tmp, name + ".epub")
+            open(epub, "w").close()
+            self.epubs.append(epub)
+
+    def test_newest_first_three_at_most(self):
+        a, b, c, d = self.epubs
+        for epub in (a, b, c, a, d):
+            positions.save_last(self.path, epub)
+        self.assertEqual(positions.load_recent(self.path), [d, a, c])
+        self.assertEqual(positions.load_last(self.path), d)
+
+    def test_files_gone_left_out(self):
+        a, b = self.epubs[:2]
+        positions.save_last(self.path, a)
+        positions.save_last(self.path, b)
+        os.remove(b)
+        self.assertEqual(positions.load_recent(self.path), [a])
+
+    def test_old_file_and_damage(self):
+        self.assertEqual(positions.load_recent(self.path), [])
+        with open(self.path, "w") as f:
+            json.dump({"books": {}, "last": self.epubs[0], "recent": [5, self.epubs[1]]}, f)
+        self.assertEqual(positions.load_recent(self.path), [self.epubs[1]])
