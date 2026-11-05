@@ -50,6 +50,8 @@ WebViewPage {
     property string resumeId: ""
     readonly property bool listening: player.active && player.chapter === chapter
     readonly property bool playing: player.playing
+    // For the lock screen and headphone controls.
+    readonly property string coverUrl: book.cover ? player.fileUrl(book.cover) : ""
     property double savedAt: 0
     // Left for the library: the page is going, and must neither lay out
     // nor save again (it would save the top of the page over the sentence).
@@ -364,12 +366,42 @@ WebViewPage {
     }
 
     function togglePlay() {
-        if (player.playing) {
-            player.pause()
-            savePosition()
-        } else {
+        if (player.playing)
+            pause()
+        else
+            play()
+    }
+
+    // Paused while listening: on where it stopped, without a round trip to
+    // the page, which nobody looks at on the lock screen. Otherwise from the
+    // page shown.
+    function play() {
+        // Closing: the page stays until its animation ends.
+        if (player.playing || closed)
+            return
+        if (player.active && barShown)
+            player.resume()
+        else
             playFromPage()
-        }
+    }
+
+    function pause() {
+        if (!player.playing)
+            return
+        player.pause()
+        savePosition()
+    }
+
+    // Only while listening: paused and turned away, a sentence would pull
+    // the page back.
+    function nextSentence() {
+        if (barShown)
+            player.next()
+    }
+
+    function previousSentence() {
+        if (barShown)
+            player.previous()
     }
 
     function followSentence(index, i) {
@@ -577,6 +609,9 @@ WebViewPage {
                             player.pause()
                             savePosition()
                         }
+                        // As when turning pages: reading now, not listening.
+                        if (player.active)
+                            barShown = false
                         loadChapter(index, fragment ? { id: fragment } : { fraction: 0 })
                     })
                 }

@@ -14,6 +14,7 @@ from . import cache, library, positions
 from .errors import EpubError
 from .overlay import read_overlay
 from .package import read_package, text_length
+from .paths import local_path
 
 _MAX_KEY_LENGTH = 200
 
@@ -55,6 +56,9 @@ def open_book(epub_path, cache_dir):
         "authors": book.authors,
         "language": book.language,
         "duration": book.duration,
+        # Shown on the lock screen; a cover named but missing is no cover.
+        "cover": (book.cover if book.cover and os.path.isfile(local_path(root, book.cover))
+                  else None),
         "activeClass": book.active_class,
         "spine": [{"path": item.path, "overlay": item.overlay,
                    "linear": item.linear} for item in book.spine],
