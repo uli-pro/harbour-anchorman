@@ -22,6 +22,7 @@ WebViewPage {
     property bool covered: true
     property int laidOutFontSize: 0
     property bool laidOutBar: false
+    property bool laidOutLight: false
     property int pageIndex: 0
     property int pageCount: 0
     property string firstId: ""
@@ -34,7 +35,10 @@ WebViewPage {
     property int bookPage: 0
     property int bookPages: 0
     property real fraction: 0
-    readonly property color pageColor: Theme.colorScheme === Theme.LightOnDark ? "black" : "white"
+    // Chosen in the pulley; until then as the ambience.
+    readonly property bool lightPage: app.pageColors === "light"
+                                      || (app.pageColors === "" && Theme.colorScheme === Theme.DarkOnLight)
+    readonly property color pageColor: lightPage ? "white" : "black"
 
     // Listening. The bar appears with playback and goes when the reader
     // turns pages while paused.
@@ -135,6 +139,10 @@ WebViewPage {
     function layout(target) {
         laidOutFontSize = app.fontSize
         laidOutBar = barShown
+        // From lightPage itself: the palette and pageColor may still hold
+        // the old colours while lightPage changes (seen on the device).
+        var light = lightPage
+        laidOutLight = light
         // While listening the page shows the sentence spoken; paused, it
         // stays where the reader is.
         if (listening && player.playing && highlightId)
@@ -144,6 +152,7 @@ WebViewPage {
             ids: sentenceIds,
             target: target,
             highlight: listening ? highlightId : "",
+            // The ambience's colour; the light palette gives the same.
             activeColor: cssColor(Theme.highlightBackgroundColor, 0.3),
             margin: 24,
             marginTop: 4,
@@ -152,8 +161,8 @@ WebViewPage {
             barHeight: barShown ? bar.height : 0,
             fontSize: app.fontSize,
             lineHeight: 1.3,
-            color: cssColor(Theme.primaryColor, 1),
-            background: cssColor(pageColor, 1)
+            color: light ? "black" : "white",
+            background: light ? "white" : "black"
         })
     }
 
@@ -247,7 +256,8 @@ WebViewPage {
             fraction = data.fraction
             updateBookPages()
             savePosition()
-            if (laidOutFontSize !== app.fontSize || laidOutBar !== barShown)
+            if (laidOutFontSize !== app.fontSize || laidOutBar !== barShown
+                    || laidOutLight !== lightPage)
                 relayout()
             break
         case "anchorman:painted":
@@ -480,6 +490,10 @@ WebViewPage {
     }
 
     onBarShownChanged: relayout()
+    onLightPageChanged: relayout()
+
+    // Silica items inside take their colours from this palette.
+    palette.colorScheme: lightPage ? Theme.DarkOnLight : Theme.LightOnDark
 
     // Closing the app gives no further chance to save.
     Connections {
@@ -542,7 +556,7 @@ WebViewPage {
             fontSizeMode: Text.HorizontalFit
             minimumPixelSize: Theme.fontSizeTiny / 2
             font.pixelSize: Theme.fontSizeExtraSmall
-            color: Theme.secondaryColor
+            color: palette.secondaryColor
             //: Chapter in the book, e.g. "Chapter 3/12"
             text: qsTr("Chapter %1/%2").arg(chapter + 1).arg(book.spine.length)
         }
@@ -557,7 +571,7 @@ WebViewPage {
             fontSizeMode: Text.HorizontalFit
             minimumPixelSize: Theme.fontSizeTiny / 2
             font.pixelSize: Theme.fontSizeExtraSmall
-            color: Theme.secondaryColor
+            color: palette.secondaryColor
             visible: bookPages > 0
             //: Estimated page in the whole book, e.g. "Page 30/295"
             text: qsTr("Page %1/%2").arg(bookPage).arg(bookPages)
@@ -615,6 +629,11 @@ WebViewPage {
                         loadChapter(index, fragment ? { id: fragment } : { fraction: 0 })
                     })
                 }
+            }
+            MenuItem {
+                text: lightPage ? qsTr("Dark page") : qsTr("Light page")
+                // After the pulley has closed: the new layout covers the page.
+                onDelayedClick: app.setPageColors(lightPage ? "dark" : "light")
             }
             MenuItem {
                 visible: !barShown
@@ -722,7 +741,7 @@ WebViewPage {
 
                 Label {
                     anchors.centerIn: parent
-                    color: parent.highlighted ? Theme.highlightColor : Theme.primaryColor
+                    color: parent.highlighted ? palette.highlightColor : palette.primaryColor
                     //: Playback speed on the button that opens the settings, e.g. "1.25×"
                     text: qsTr("%1×").arg(Number(app.playbackRate).toLocaleString(Qt.locale(), "f", 2))
                 }
