@@ -12,6 +12,12 @@ _OPF = "{http://www.idpf.org/2007/opf}"
 _DC = "{http://purl.org/dc/elements/1.1/}"
 _XHTML = "{http://www.w3.org/1999/xhtml}"
 _EPUB = "{http://www.idpf.org/2007/ops}"
+_NCX = "{http://www.daisy.org/z3986/2005/ncx/}"
+_ENC = "{http://www.w3.org/2001/04/xmlenc#}"
+
+# Embedded fonts may be obfuscated; anything else encrypted is DRM.
+_FONT_OBFUSCATION = {"http://www.idpf.org/2008/embedding",
+                     "http://ns.adobe.com/pdf/enc#RC"}
 
 DEFAULT_ACTIVE_CLASS = "-epub-media-overlay-active"
 
@@ -40,6 +46,7 @@ def read_package(root):
             break
     if not opf_path:
         raise EpubError("not_epub", "no package document")
+    _check_encryption(root)
     target = resolve("", opf_path)
     if not target:
         raise EpubError("bad_package", opf_path)
@@ -62,6 +69,13 @@ def read_package(root):
             toc = read_nav(root, nav.path)
         except (EpubError, OSError):
             pass
+    if not toc:
+        ncx = _ncx_item(opf, manifest)
+        if ncx is not None:
+            try:
+                toc = read_ncx(root, ncx.path)
+            except (EpubError, OSError):
+                pass
 
     return Book(
         identifier=_identifier(opf, metadata),
@@ -113,6 +127,34 @@ def read_nav(root, nav_path):
     return entries
 
 
+def read_ncx(root, ncx_path):
+    """Read the table of contents from the EPUB 2 NCX file ncx_path."""
+    doc = parse_xml(local_path(root, ncx_path))
+    nav_map = doc.find(_NCX + "navMap")
+    if nav_map is None:
+        return []
+    entries = []
+    stack = [(iter(nav_map.findall(_NCX + "navPoint")), 0)]
+    while stack:
+        points, level = stack[-1]
+        point = next(points, None)
+        if point is None:
+            stack.pop()
+            continue
+        label = point.find(_NCX + "navLabel/" + _NCX + "text")
+        content = point.find(_NCX + "content")
+        path, fragment = None, ""
+        src = content.get("src") if content is not None else None
+        if src:
+            target = resolve(ncx_path, src)
+            if target:
+                path, fragment = target
+        entries.append(TocEntry(_text(label) if label is not None else "",
+                                path, fragment, level))
+        stack.append((iter(point.findall(_NCX + "navPoint")), level + 1))
+    return entries
+
+
 def text_length(root, path):
     """Number of characters of text in the XHTML file path.
 
@@ -120,11 +162,36 @@ def text_length(root, path):
     file counts as 0 instead of raising.
     """
     try:
-        doc = parse_xml(local_path(root, path))
+        doc = parse_xml(local_path(root, path), html_entities=True)
     except (EpubError, OSError):
         return 0
     body = doc.find(_XHTML + "body")
     return len(_text(body if body is not None else doc))
+
+
+def _check_encryption(root):
+    try:
+        doc = parse_xml(local_path(root, "META-INF/encryption.xml"))
+    except OSError:
+        return
+    except EpubError:
+        raise EpubError("drm", "unreadable encryption.xml")
+    for data in doc.iter(_ENC + "EncryptedData"):
+        method = data.find(_ENC + "EncryptionMethod")
+        algorithm = method.get("Algorithm", "") if method is not None else ""
+        if algorithm not in _FONT_OBFUSCATION:
+            raise EpubError("drm", algorithm)
+
+
+def _ncx_item(opf, manifest):
+    spine = opf.find(_OPF + "spine")
+    toc_id = spine.get("toc") if spine is not None else None
+    if toc_id and toc_id in manifest:
+        return manifest[toc_id]
+    # Some books declare it as text/xml; the extension still tells.
+    return next((i for i in manifest.values()
+                 if i.media_type == "application/x-dtbncx+xml"
+                 or i.path.lower().endswith(".ncx")), None)
 
 
 def _read_manifest(opf, opf_path):

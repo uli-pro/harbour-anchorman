@@ -1,7 +1,8 @@
 import os
 
 from anchorman.errors import EpubError
-from anchorman.package import SpineItem, TocEntry, read_nav, read_package, text_length
+from anchorman.package import (SpineItem, TocEntry, read_nav, read_ncx, read_package,
+                               text_length)
 
 from .helpers import MINI_DIR, TempDirTestCase, write_files
 
@@ -196,6 +197,111 @@ NAV = """<?xml version="1.0"?>
 </html>"""
 
 
+NCX = """<?xml version="1.0"?>
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+  <navMap>
+    <navPoint id="p1" playOrder="1">
+      <navLabel><text>Part One</text></navLabel>
+      <content src="Text/part1.xhtml"/>
+      <navPoint id="p2" playOrder="2">
+        <navLabel><text> Chapter
+          1 </text></navLabel>
+        <content src="Text/c1.xhtml#start"/>
+      </navPoint>
+    </navPoint>
+    <navPoint id="p3" playOrder="3">
+      <navLabel><text>No link</text></navLabel>
+    </navPoint>
+  </navMap>
+</ncx>"""
+
+ENCRYPTION = """<?xml version="1.0"?>
+<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container"
+            xmlns:enc="http://www.w3.org/2001/04/xmlenc#">
+  <enc:EncryptedData>
+    <enc:EncryptionMethod Algorithm="{}"/>
+    <enc:CipherData><enc:CipherReference URI="OPS/{}"/></enc:CipherData>
+  </enc:EncryptedData>
+</encryption>"""
+
+
+class NcxTest(TempDirTestCase):
+
+    book = PackageTest.book
+    assertFails = PackageTest.assertFails
+
+    def test_nested(self):
+        write_files(self.tmp, {"OPS/toc.ncx": NCX})
+        self.assertEqual(read_ncx(self.tmp, "OPS/toc.ncx"), [
+            TocEntry("Part One", "OPS/Text/part1.xhtml", "", 0),
+            TocEntry("Chapter 1", "OPS/Text/c1.xhtml", "start", 1),
+            TocEntry("No link", None, "", 0),
+        ])
+
+    def test_deep_nesting(self):
+        depth = 5000
+        points = ("<navPoint><navLabel><text>x</text></navLabel><content src='a.xhtml'/>" * depth
+                  + "</navPoint>" * depth)
+        write_files(self.tmp, {"toc.ncx": (
+            '<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/"><navMap>' + points
+            + "</navMap></ncx>")})
+        entries = read_ncx(self.tmp, "toc.ncx")
+        self.assertEqual(len(entries), depth)
+        self.assertEqual(entries[-1].level, depth - 1)
+
+    def test_package_uses_spine_toc(self):
+        book = self.book(
+            manifest=CHAPTER + '<item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            spine='<itemref idref="c1"/>', files={"OPS/toc.ncx": NCX})
+        self.assertEqual(len(book.toc), 3)
+
+    def test_package_finds_ncx_by_media_type(self):
+        book = self.book(
+            manifest=CHAPTER + '<item id="n" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            files={"OPS/toc.ncx": NCX})
+        self.assertEqual(book.toc[0], TocEntry("Part One", "OPS/Text/part1.xhtml", "", 0))
+
+    def test_package_finds_ncx_by_extension(self):
+        book = self.book(
+            manifest=CHAPTER + '<item id="n" href="toc.ncx" media-type="text/xml"/>',
+            files={"OPS/toc.ncx": NCX})
+        self.assertEqual(len(book.toc), 3)
+
+    def test_nav_wins_over_ncx(self):
+        book = self.book(
+            manifest=CHAPTER + '<item id="nav" href="nav.xhtml" properties="nav" media-type="application/xhtml+xml"/>'
+                     '<item id="n" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            files={"OPS/toc.ncx": NCX, "OPS/nav.xhtml": NAV})
+        self.assertEqual(book.toc[0].title, "Part One")
+        self.assertIsNone(book.toc[0].path)  # from the nav, where Part One has no link
+
+    def test_broken_ncx_gives_no_toc(self):
+        outside = NCX.replace("Text/part1.xhtml", "../../outside.xhtml")
+        for ncx in ("<ncx", outside):
+            book = self.book(
+                manifest=CHAPTER + '<item id="n" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+                files={"OPS/toc.ncx": ncx})
+            self.assertEqual(book.toc, [])
+
+
+class EncryptionTest(TempDirTestCase):
+
+    book = PackageTest.book
+    assertFails = PackageTest.assertFails
+
+    def test_obfuscated_fonts_are_fine(self):
+        for algorithm in ("http://www.idpf.org/2008/embedding", "http://ns.adobe.com/pdf/enc#RC"):
+            book = self.book(files={"META-INF/encryption.xml": ENCRYPTION.format(algorithm, "font.otf")})
+            self.assertEqual(len(book.spine), 1)
+
+    def test_encrypted_content_is_drm(self):
+        self.assertFails("drm", files={"META-INF/encryption.xml": ENCRYPTION.format(
+            "http://www.w3.org/2001/04/xmlenc#aes128-cbc", "c1.xhtml")})
+
+    def test_unreadable_encryption_is_drm(self):
+        self.assertFails("drm", files={"META-INF/encryption.xml": "<encryption"})
+
+
 class NavTest(TempDirTestCase):
 
     def test_nested(self):
@@ -242,6 +348,16 @@ class TextLengthTest(TempDirTestCase):
             "big.xhtml": '<html xmlns="http://www.w3.org/1999/xhtml"><body>' + "x" * (10 * 1024 * 1024) + '</body></html>'})
         self.assertEqual(text_length(self.tmp, "dtd.xhtml"), 0)
         self.assertEqual(text_length(self.tmp, "big.xhtml"), 0)
+
+    def test_named_html_characters(self):
+        write_files(self.tmp, {"c.xhtml": (
+            '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">'
+            '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>a&nbsp;b &uuml; &amp;</p></body></html>')})
+        self.assertEqual(text_length(self.tmp, "c.xhtml"), len("a\u00a0b \u00fc &"))
+
+    def test_unknown_named_character_counts_zero(self):
+        write_files(self.tmp, {"c.xhtml": '<html xmlns="http://www.w3.org/1999/xhtml"><body>&bogus;</body></html>'})
+        self.assertEqual(text_length(self.tmp, "c.xhtml"), 0)
 
     def test_mini_chapter(self):
         self.assertGreater(text_length(MINI_DIR, "OEBPS/chapter.xhtml"), 100)

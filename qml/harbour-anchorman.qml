@@ -59,6 +59,8 @@ ApplicationWindow {
             return qsTr("Not enough free space to open this book.")
         case "unsafe_path":
             return qsTr("This book contains unsafe file names and was not opened.")
+        case "drm":
+            return qsTr("This book is protected by DRM and cannot be opened.")
         case "io":
             return qsTr("The book could not be read.")
         default:
