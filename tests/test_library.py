@@ -1,22 +1,15 @@
 import json
 import os
 import unittest
-import zipfile
 from unittest import mock
 
 from anchorman import library
 from anchorman.errors import EpubError
 from anchorman.library import (BookFile, book_info, broken_info, card_folders, extract_cover,
-                               is_readaloud, list_books, load_cached, normal_identifier,
+                               list_books, load_cached, normal_identifier,
                                prune_covers, scan, without_replaced)
 
 from .helpers import TempDirTestCase, make_epub, write_files
-
-
-def make_zip(path, names):
-    with zipfile.ZipFile(path, "w") as archive:
-        for name in names:
-            archive.writestr(name, "x")
 
 
 class ListBooksTest(TempDirTestCase):
@@ -53,11 +46,6 @@ class ListBooksTest(TempDirTestCase):
     def test_missing_folder(self):
         self.assertEqual(list_books([self.path("missing")]), [])
 
-    def test_accept(self):
-        write_files(self.tmp, {"a.epub": "", "b.epub": ""})
-        books = list_books([self.tmp], lambda path: path.endswith("b.epub"))
-        self.assertEqual([b.name for b in books], ["b"])
-
     def test_link_to_a_listed_book_lists_it_once(self):
         write_files(self.tmp, {"a.epub": ""})
         os.symlink(self.path("a.epub"), self.path("b.epub"))
@@ -71,36 +59,6 @@ class ListBooksTest(TempDirTestCase):
     def test_same_folder_twice_lists_books_once(self):
         write_files(self.tmp, {"a.epub": ""})
         self.assertEqual(len(list_books([self.tmp, self.tmp])), 1)
-
-
-class IsReadaloudTest(TempDirTestCase):
-
-    def path(self, name):
-        return os.path.join(self.tmp, name)
-
-    def test_with_smil(self):
-        make_zip(self.path("a.epub"), ["mimetype", "OEBPS/MediaOverlays/c.smil"])
-        self.assertTrue(is_readaloud(self.path("a.epub")))
-
-    def test_upper_case(self):
-        make_zip(self.path("a.epub"), ["OPS/C.SMIL"])
-        self.assertTrue(is_readaloud(self.path("a.epub")))
-
-    def test_without_smil(self):
-        make_zip(self.path("a.epub"), ["mimetype", "OEBPS/c.xhtml", "OEBPS/smil.txt"])
-        self.assertFalse(is_readaloud(self.path("a.epub")))
-
-    def test_unreadable(self):
-        write_files(self.tmp, {"text.epub": "not a zip", "empty.epub": ""})
-        self.assertFalse(is_readaloud(self.path("text.epub")))
-        self.assertFalse(is_readaloud(self.path("empty.epub")))
-        self.assertFalse(is_readaloud(self.path("missing.epub")))
-        os.mkdir(self.path("folder.epub"))
-        self.assertFalse(is_readaloud(self.path("folder.epub")))
-
-    def test_fifo_is_not_opened(self):
-        os.mkfifo(self.path("pipe.epub"))
-        self.assertFalse(is_readaloud(self.path("pipe.epub")))  # would hang if opened
 
 
 class CardFoldersTest(TempDirTestCase):
@@ -201,6 +159,13 @@ class ScanTest(TempDirTestCase):
         self.assertEqual([e["info"]["title"] for e in entries], ["B2"])
         self.assertEqual(read.call_count, 1)
         self.assertEqual(load_cached(self.cache), entries)
+
+    def test_fifo_and_folder_are_not_opened(self):
+        os.mkfifo(os.path.join(self.books, "pipe.epub"))  # would hang if opened
+        os.mkdir(os.path.join(self.books, "folder.epub"))
+        self.assertEqual(scan([self.books], self.cache), [])
+        with self.assertRaises(EpubError):
+            book_info(os.path.join(self.books, "pipe.epub"))
 
     def test_broken_book_listed_by_file_name(self):
         write_files(self.books, {"Broken Book.epub": b"no zip"})

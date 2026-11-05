@@ -54,6 +54,7 @@ WebViewPage {
     property string resumeId: ""
     readonly property bool listening: player.active && player.chapter === chapter
     readonly property bool playing: player.playing
+    readonly property bool hasAudio: book.spine.some(function (item) { return !!item.overlay })
     // For the lock screen and headphone controls.
     readonly property string coverUrl: book.cover ? player.fileUrl(book.cover) : ""
     property double savedAt: 0
@@ -636,7 +637,7 @@ WebViewPage {
                 onDelayedClick: app.setPageColors(lightPage ? "dark" : "light")
             }
             MenuItem {
-                visible: !barShown
+                visible: !barShown && hasAudio
                 text: qsTr("Play")
                 onClicked: playFromPage()
             }

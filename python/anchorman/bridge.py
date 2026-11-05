@@ -39,20 +39,23 @@ _COVER_TYPES = (".jpg", ".jpeg", ".png", ".gif", ".svg", ".webp")
 _scan_lock = threading.Lock()
 
 
-def cached_library(cache_file):
-    """The library as last scanned, at once; see library_view."""
-    return library_view(library.load_cached(cache_file))
+def cached_library(cache_file, folders):
+    """The books below folders as last scanned, at once; see library_view."""
+    prefixes = tuple(os.path.join(folder, "") for folder in folders)
+    return library_view([e for e in library.load_cached(cache_file)
+                         if e["path"].startswith(prefixes)])
 
 
-def scan_library(folders, cache_file, covers_dir):
+def scan_library(folders, cache_file, covers_dir, serial):
     """Look for new and changed books in a thread, so that a book can be
-    opened meanwhile; the result comes as the event "library"."""
+    opened meanwhile; the result comes as the event ("library", serial,
+    result)."""
     import pyotherside  # only on the device
 
     def run():
         with _scan_lock:
             result = scan_now(folders, cache_file, covers_dir)
-        pyotherside.send("library", result)
+        pyotherside.send("library", serial, result)
 
     threading.Thread(target=run, daemon=True).start()
 
@@ -145,13 +148,6 @@ def _order(book):
     return (book["group"] or "\uffff", book["series"] == "",
             fold(book["series"]), book["index"] if book["index"] is not None else math.inf,
             fold(book["title"]), book["path"])
-
-
-def list_books(folders):
-    """The readalouds below folders; removable is true for memory cards."""
-    return [{"path": book.path, "name": book.name,
-             "removable": os.path.realpath(book.path).startswith(_MEDIA_ROOT + "/")}
-            for book in library.list_books(folders, library.is_readaloud)]
 
 
 def open_book(epub_path, cache_dir):

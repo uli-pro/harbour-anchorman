@@ -14,6 +14,8 @@ ApplicationWindow {
     readonly property string libraryFolder: libraryFolderSetting.value || ""
     readonly property string cacheFolder: StandardPaths.cache + "/books"
     readonly property string positionsFile: StandardPaths.data + "/positions.json"
+    readonly property string libraryCache: StandardPaths.cache + "/library.json"
+    readonly property string coversFolder: StandardPaths.cache + "/covers"
     // Text size in screen pixels, like FBReader; the frame script converts
     // it to CSS pixels.
     readonly property int minFontSize: 20

@@ -30,12 +30,6 @@ class BridgeTest(TempDirTestCase):
         self.epub = os.path.join(self.tmp, "happy-prince.epub")
         make_epub(self.epub, mini_entries())
 
-    def test_list_books(self):
-        # Only readalouds: the mini book has a SMIL file, the other none.
-        write_files(self.tmp, {"plain.epub": "not a zip"})
-        self.assertEqual(bridge.list_books([self.tmp]),
-                         [{"path": self.epub, "name": "happy-prince", "removable": False}])
-
     def test_default_folders(self):
         user = getpass.getuser()
         write_files(self.tmp, {"media/" + user + "/card/x": ""})
@@ -237,4 +231,5 @@ class LibraryViewTest(TempDirTestCase):
         view = bridge.scan_now([books], cache_file, covers)
         self.assertEqual([b["title"] for b in view["books"]], ["The Happy Prince"])
         self.assertEqual(os.listdir(covers), [])
-        self.assertEqual(bridge.cached_library(cache_file), view)
+        self.assertEqual(bridge.cached_library(cache_file, [books]), view)
+        self.assertEqual(bridge.cached_library(cache_file, [books + "x"])["books"], [])
