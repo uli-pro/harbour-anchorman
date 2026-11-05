@@ -2,6 +2,10 @@ import QtQuick 2.0
 import Sailfish.Silica 1.0
 
 Page {
+    // Until chosen the reading page follows the ambience.
+    readonly property bool lightPage: app.pageColors === "light"
+                                      || (app.pageColors === "" && Theme.colorScheme === Theme.DarkOnLight)
+
     // Store once when leaving: the book is laid out again, or the audio file
     // reloaded, only then.
     onStatusChanged: {
@@ -11,6 +15,9 @@ Page {
             app.setFontFamily(fontBox.currentIndex === 1 ? "serif" : "sans")
             app.setLineHeight(lineSlider.value)
             app.setParagraphSpacing(spacingSlider.value)
+            // Kept unset, following the ambience, until a choice differs.
+            if ((pageBox.currentIndex === 0) !== lightPage)
+                app.setPageColors(pageBox.currentIndex === 0 ? "light" : "dark")
         }
     }
 
@@ -76,6 +83,20 @@ Page {
             }
 
             ComboBox {
+                id: pageBox
+                width: parent.width
+                //: Colours of the reading page
+                label: qsTr("Page")
+                currentIndex: lightPage ? 0 : 1
+                menu: ContextMenu {
+                    //: Black text on white
+                    MenuItem { text: qsTr("Light") }
+                    //: White text on black
+                    MenuItem { text: qsTr("Dark") }
+                }
+            }
+
+            ComboBox {
                 id: fontBox
                 width: parent.width
                 label: qsTr("Font")
@@ -88,9 +109,10 @@ Page {
 
             // Two paragraphs as the book shows them: font, size, line and
             // paragraph spacing, or the indent that replaces the latter.
-            Item {
+            Rectangle {
                 width: parent.width
                 height: sample.height + 2 * Theme.paddingLarge
+                color: pageBox.currentIndex === 0 ? "white" : "black"
 
                 Column {
                     id: sample
@@ -121,6 +143,7 @@ Page {
                             lineHeight: lineSlider.value * sample.size
                             font.family: fontBox.currentIndex === 1 ? "serif" : "sans-serif"
                             font.pixelSize: sample.size
+                            color: pageBox.currentIndex === 0 ? "black" : "white"
                             // An em space stands for the indent of 1em.
                             text: (sample.indent ? "\u2003" : "") + modelData
                         }

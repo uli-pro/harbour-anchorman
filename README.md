@@ -9,6 +9,15 @@ Readalouds can be created from an EPUB and an audiobook with
 
 **Status:** early development, not usable yet.
 
+## Using
+
+- **Turn pages** by swiping, or by tapping the left or right edge.
+- **Listen** by tapping a sentence: narration starts there. Tapping where
+  there is no sentence starts at the top of the page. When a book is opened
+  again, the sentence heard last is marked; tap it to go on listening.
+- **Find** (pull-down menu) searches the book for paragraphs holding all
+  words typed, in any order. A line in the hits shows where you are.
+
 ## Building
 
 Requires the [Sailfish SDK](https://docs.sailfishos.org/Tools/Sailfish_SDK/).

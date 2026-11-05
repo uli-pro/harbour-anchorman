@@ -34,6 +34,8 @@ ListItem {
         Label {
             width: parent.width
             text: item.book ? item.book.title : ""
+            // Text from the book, never markup.
+            textFormat: Text.PlainText
             wrapMode: Text.Wrap
             maximumLineCount: 3
             elide: Text.ElideRight
@@ -59,6 +61,8 @@ ListItem {
             Label {
                 width: parent.width - (audioIcon.visible ? audioIcon.width + parent.spacing : 0)
                 text: item.detail
+                // Text from the book, never markup.
+                textFormat: Text.PlainText
                 truncationMode: TruncationMode.Fade
                 font.pixelSize: Theme.fontSizeExtraSmall
                 color: item.highlighted ? Theme.secondaryHighlightColor : Theme.secondaryColor

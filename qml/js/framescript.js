@@ -96,9 +96,10 @@ addMessageListener("anchorman:layout", function (message) {
         "  break-inside: avoid; }" +
         // Links cannot be followed, so they look like the text around them.
         "body a, body a:link, body a:visited { color: inherit; text-decoration: none; }" +
-        // Our own mark for the sentence spoken: the book's style for its
-        // active class is made for white pages.
-        "body .anchorman-active { background-color: " + o.activeColor + "; }")
+        // Our own mark for the sentence spoken, and for the one heard last
+        // where listening goes on: the book's style for its active class is
+        // made for white pages.
+        "body .anchorman-active, body .anchorman-resume { background-color: " + o.markColor + "; }")
     normalize(doc, o)
 
     var sentences = []
@@ -112,6 +113,13 @@ addMessageListener("anchorman:layout", function (message) {
         }
     }
     var active = current() ? state.active : null
+    var resume = current() ? state.resume : null
+    var found = current() ? state.found : null
+    if (resume)
+        resume.classList.remove("anchorman-resume")
+    resume = o.resume ? doc.getElementById(o.resume) : null
+    if (resume)
+        resume.classList.add("anchorman-resume")
     state = {
         serial: o.serial,
         doc: doc,
@@ -126,9 +134,13 @@ addMessageListener("anchorman:layout", function (message) {
         textScale: doc.body ? parseFloat(content.getComputedStyle(doc.body).fontSize) / fontSize : 0,
         sentences: sentences,
         isSentence: isSentence,
-        active: active
+        active: active,
+        resume: resume,
+        // The text found, kept to select it again (see remark).
+        found: found
     }
     go(target)
+    remark()
     if (o.highlight) {
         highlight(o.highlight)
     } else if (state.active) {
@@ -418,14 +430,19 @@ function awaitPaint(serial) {
     paintSerial = serial
 }
 
+// A jump within the chapter: what was marked belongs to the place left.
 addMessageListener("anchorman:goto", function (message) {
-    if (current())
-        go(message.data.target)
+    if (!current())
+        return
+    if (!message.data.target.find)
+        unmark()
+    go(message.data.target)
 })
 
 addMessageListener("anchorman:turn", function (message) {
     if (!current())
         return
+    unmark()
     var page = currentPage() + message.data.delta
     if (page < 0 || page >= pageCount()) {
         sendAsyncMessage("anchorman:edge", { serial: state.serial, delta: message.data.delta })
@@ -442,9 +459,126 @@ function currentPage() {
     return Math.round(state.scroller.scrollLeft / state.width)
 }
 
-// target: { id, fraction } (either may be missing) or { end: true }; keep
-// is only read by the layout.
+// Turning pages or listening: the found text and the sentence heard last
+// are no longer what the reader looks at.
+function unmark() {
+    state.found = null
+    try {
+        content.getSelection().removeAllRanges()
+    } catch (e) { }
+    if (state.resume) {
+        state.resume.classList.remove("anchorman-resume")
+        state.resume = null
+    }
+}
+
+addMessageListener("anchorman:unmark", function (message) {
+    if (current())
+        unmark()
+})
+
+// Gecko drops the selection when the page is shown again after another
+// one (the search) or laid out again; select the text found once more.
+function remark() {
+    if (!state.found)
+        return
+    var selection = content.getSelection()
+    selection.removeAllRanges()
+    selection.addRange(state.found)
+}
+
+addMessageListener("anchorman:remark", function (message) {
+    if (current())
+        remark()
+})
+
+// A place found by the search: offset and length in body.textContent,
+// counted in UTF-16 code units, and the text expected there. Should the
+// text differ, the occurrence nearest to offset is taken: the HTML parser
+// may read a page slightly differently. null if it is not in the chapter.
+function findRange(find) {
+    var body = state.doc.body
+    if (!body)
+        return null
+    var nodes = []
+    var starts = []
+    var all = ""
+    // Text and CDATA nodes, in the order textContent joins them.
+    var walker = state.doc.createTreeWalker(body, 4 | 8)
+    for (var n = walker.nextNode(); n; n = walker.nextNode()) {
+        nodes.push(n)
+        starts.push(all.length)
+        all += n.data
+    }
+    var at = find.offset
+    if (all.substr(at, find.length) !== find.text) {
+        var after = all.indexOf(find.text, at)
+        var before = all.lastIndexOf(find.text, at)
+        if (after < 0 && before < 0)
+            return null
+        at = after < 0 ? before : before < 0 ? after : (after - at <= at - before ? after : before)
+    }
+    var end = at + find.text.length
+    var range = state.doc.createRange()
+    for (var i = 0; i < nodes.length; ++i) {
+        var nodeEnd = starts[i] + nodes[i].length
+        if (at >= starts[i] && at < nodeEnd)
+            range.setStart(nodes[i], at - starts[i])
+        if (end > starts[i] && end <= nodeEnd) {
+            range.setEnd(nodes[i], end - starts[i])
+            break
+        }
+    }
+    return range
+}
+
+// The sentence holding the found place, else the next one after it; "".
+function sentenceAt(range) {
+    for (var el = range.startContainer; el; el = el.parentNode) {
+        if (el.id && state.isSentence[el.id])
+            return el.id
+    }
+    for (var i = 0; i < state.sentences.length; ++i) {
+        // DOCUMENT_POSITION_FOLLOWING
+        if (range.startContainer.compareDocumentPosition(state.sentences[i]) & 4)
+            return state.sentences[i].id
+    }
+    return ""
+}
+
+// The found text is selected, which Gecko shows marked; the WebView gets
+// no touches, so the reader cannot change the selection.
+function goFound(find) {
+    var range = findRange(find)
+    var id = ""
+    if (state.resume) {
+        state.resume.classList.remove("anchorman-resume")
+        state.resume = null
+    }
+    if (range) {
+        var rects = Array.prototype.filter.call(range.getClientRects(), function (r) {
+            return r.width >= 1 && r.height >= 1
+        })
+        showPage(rects.length ? pageOfBox(rects[0]) : 0)
+        state.found = range
+        remark()
+        id = sentenceAt(range)
+    } else {
+        // Not the previous hit's mark on another page.
+        state.found = null
+        content.getSelection().removeAllRanges()
+        showPage(0)
+    }
+    sendAsyncMessage("anchorman:found", { serial: state.serial, id: id })
+}
+
+// target: { id, fraction } (either may be missing), { end: true } or
+// { find } (see findRange); keep is only read by the layout.
 function go(target) {
+    if (target.find) {
+        goFound(target.find)
+        return
+    }
     var el = target.id ? state.doc.getElementById(target.id) : null
     if (el)
         showPage(pageOf(el))

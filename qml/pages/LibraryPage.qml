@@ -265,6 +265,8 @@ Page {
                     width: parent.width - 2 * x - countLabel.width - Theme.paddingMedium
                     anchors.verticalCenter: parent.verticalCenter
                     text: model.name || qsTr("Unknown author")
+                    // Text from the book, never markup.
+                    textFormat: Text.PlainText
                     truncationMode: TruncationMode.Fade
                     color: authorRow.highlighted ? Theme.highlightColor : Theme.primaryColor
                 }

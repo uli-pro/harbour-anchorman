@@ -35,7 +35,7 @@ WebViewPage {
     property int bookPage: 0
     property int bookPages: 0
     property real fraction: 0
-    // Chosen in the pulley; until then as the ambience.
+    // Chosen in the settings; until then as the ambience.
     readonly property bool lightPage: app.pageColors === "light"
                                       || (app.pageColors === "" && Theme.colorScheme === Theme.DarkOnLight)
     readonly property color pageColor: lightPage ? "white" : "black"
@@ -50,8 +50,21 @@ WebViewPage {
     // The next chapter with audio, read ahead: {after, chapter, clips};
     // chapter -1 at the end of the book.
     property var upcoming: null
-    // Sentence heard last before the book was closed; Play resumes there.
+    // Sentence heard last before the book was closed; listening resumes there.
     property string resumeId: ""
+    // The sentence of the place jumped to from the search; Play starts there.
+    property string jumpId: ""
+    // Going from hit to hit: the hits of the last search, the one shown, and
+    // the words, shown again on the search page. The bar shows while the
+    // reader looks through the hits.
+    property var findHits: []
+    property int findIndex: -1
+    property string findQuery: ""
+    property bool findShown: false
+    // A hit chosen in the list, shown once this page is back.
+    property int pendingHit: -1
+    // A bar covers the bottom of the text: the player's or the search's.
+    readonly property bool lowerBar: barShown || findShown
     readonly property bool listening: player.active && player.chapter === chapter
     readonly property bool playing: player.playing
     readonly property bool hasAudio: book.spine.some(function (item) { return !!item.overlay })
@@ -65,11 +78,6 @@ WebViewPage {
     // Turning pages needs the horizontal swipe; the library is in the pulley.
     backNavigation: false
     allowedOrientations: Orientation.Portrait
-
-    function cssColor(c, alpha) {
-        return "rgba(" + Math.round(c.r * 255) + "," + Math.round(c.g * 255) + ","
-                + Math.round(c.b * 255) + "," + alpha + ")"
-    }
 
     function fileUrl(path) {
         return "file://" + path.split("/").map(encodeURIComponent).join("/")
@@ -142,7 +150,7 @@ WebViewPage {
 
     function layoutSettings() {
         return [app.fontSize, app.fontFamily, app.lineHeight, app.paragraphSpacing,
-                barShown, lightPage].join("|")
+                lowerBar, lightPage].join("|")
     }
 
     function layout(target) {
@@ -158,14 +166,17 @@ WebViewPage {
             serial: serial,
             ids: sentenceIds,
             target: target,
-            highlight: listening ? highlightId : "",
-            // The ambience's colour; the light palette gives the same.
-            activeColor: cssColor(Theme.highlightBackgroundColor, 0.3),
+            // Paused and turned away, the sentence would pull the page back.
+            highlight: listening && barShown ? highlightId : "",
+            resume: !player.active ? resumeId : "",
+            // Highlighter yellow: the ambience's colour may be too dark to
+            // see on a black page. Dimmed there, so white text stays legible.
+            markColor: light ? "rgba(255,225,0,0.55)" : "rgba(230,190,0,0.45)",
             margin: 24,
             marginTop: 4,
             marginBottom: 12,
             // The bar must not cover the text read along.
-            barHeight: barShown ? bar.height : 0,
+            barHeight: lowerBar ? bar.height : 0,
             fontSize: app.fontSize,
             fontFamily: app.fontFamily === "serif" ? "serif" : "sans-serif",
             lineHeight: app.lineHeight,
@@ -298,9 +309,18 @@ WebViewPage {
                 }))
             }
             break
+        case "anchorman:found":
+            if (data.serial === serial)
+                jumpId = data.id
+            break
         case "anchorman:hit":
             if (data.serial !== serial)
                 return
+            // A tap in the text ends looking through the hits; in a
+            // readaloud by listening (startPlayer), in one place for both
+            // bars, so the page is laid out once.
+            if (!hasAudio)
+                findShown = false
             if (data.id)
                 playSentence(data.id)
             else if (!player.playing)
@@ -359,7 +379,10 @@ WebViewPage {
     function startPlayer(index, clips, i, offset) {
         resumeId = ""
         player.start(index, clips, i, offset)
+        // The bar first: with the find bar going at the same time the text
+        // keeps its height and is not laid out again.
         barShown = true
+        unmark()
     }
 
     function playSentence(id) {
@@ -367,6 +390,7 @@ WebViewPage {
             // The sentence paused at: on from where it stopped.
             player.resume()
             barShown = true
+            unmark()
             return
         }
         for (var i = 0; i < sentenceClips.length; ++i) {
@@ -380,8 +404,57 @@ WebViewPage {
     function playFromPage() {
         if (!ready || !hasAudio)
             return
-        var prefer = player.active ? (listening ? player.currentId : "") : resumeId
+        var prefer = jumpId || (player.active ? (listening ? player.currentId : "") : resumeId)
         flickable.webView.sendAsyncMessage("anchorman:startSentence", { prefer: prefer })
+    }
+
+    // Listening or turning pages: what was found or heard before is no
+    // longer marked.
+    function unmark() {
+        jumpId = ""
+        findShown = false
+        flickable.webView.sendAsyncMessage("anchorman:unmark", {})
+    }
+
+    // To a place found by the search: reading there, not listening.
+    function jumpTo(index, target) {
+        resumeId = ""
+        jumpId = ""
+        if (player.playing) {
+            player.pause()
+            savePosition()
+        }
+        if (player.active)
+            barShown = false
+        loadChapter(index, target)
+    }
+
+    function showHit(index) {
+        var hit = findHits[index]
+        findIndex = index
+        // Before the jump: the bar changes the page layout.
+        findShown = true
+        jumpTo(hit.spine, { find: { offset: hit.offset, length: hit.length, text: hit.text } })
+    }
+
+    function openFind() {
+        var find = pageStack.push(Qt.resolvedUrl("FindPage.qml"),
+                                  { root: book.root, here: here(), initialQuery: findQuery })
+        find.selected.connect(function (hits, index, query) {
+            findHits = hits
+            findQuery = query
+            pendingHit = index
+        })
+    }
+
+    // The place shown in the search as the reader's: the sentence heard,
+    // or the page read.
+    function here() {
+        if (listening && (player.playing || barShown))
+            return { spine: chapter, id: player.currentId, fraction: fraction, heard: true }
+        if (!player.active && resumeId)
+            return { spine: chapter, id: resumeId, fraction: fraction, heard: true }
+        return { spine: chapter, id: firstId, fraction: fraction, heard: false }
     }
 
     function hit(x, y) {
@@ -477,6 +550,7 @@ WebViewPage {
         if (player.active && !player.playing)
             barShown = false
         resumeId = ""
+        jumpId = ""
         flickable.webView.sendAsyncMessage("anchorman:turn", { delta: delta })
     }
 
@@ -506,7 +580,7 @@ WebViewPage {
         onParagraphSpacingChanged: settingsTimer.restart()
     }
 
-    onBarShownChanged: relayout()
+    onLowerBarChanged: relayout()
     onLightPageChanged: relayout()
 
     // Silica items inside take their colours from this palette.
@@ -521,10 +595,27 @@ WebViewPage {
         }
     }
 
+    // Only now: while the search page was shown, its keyboard made the view
+    // lower, and a chapter laid out then has far more pages than later
+    // (seen on the device: 64 instead of 13).
+    onStatusChanged: {
+        if (status !== PageStatus.Active)
+            return
+        if (pendingHit >= 0) {
+            var index = pendingHit
+            pendingHit = -1
+            showHit(index)
+        } else if (ready) {
+            // Gecko drops the selection while another page is shown.
+            flickable.webView.sendAsyncMessage("anchorman:remark", {})
+        }
+    }
+
     Component.onCompleted: app.reader = page
     Component.onDestruction: {
         if (app.reader === page)
             app.reader = null
+        py.call("anchorman.bridge.drop_search", [book.root])
     }
 
     Player {
@@ -615,6 +706,10 @@ WebViewPage {
             backgroundColor: pageColor
 
             MenuItem {
+                text: qsTr("Settings")
+                onClicked: pageStack.push(Qt.resolvedUrl("SettingsPage.qml"))
+            }
+            MenuItem {
                 text: qsTr("Library")
                 onClicked: {
                     savePosition()
@@ -624,8 +719,9 @@ WebViewPage {
                 }
             }
             MenuItem {
-                text: qsTr("Settings")
-                onClicked: pageStack.push(Qt.resolvedUrl("SettingsPage.qml"))
+                //: Opens the search in the book
+                text: qsTr("Find")
+                onClicked: openFind()
             }
             MenuItem {
                 text: qsTr("Contents")
@@ -633,29 +729,10 @@ WebViewPage {
                     var toc = pageStack.push(Qt.resolvedUrl("TocPage.qml"),
                                              { toc: book.toc, currentChapter: chapter })
                     toc.selected.connect(function (index, fragment) {
-                        resumeId = ""
-                        // A jump away from the sentence spoken: listening
-                        // would pull the page back at once.
-                        if (player.playing) {
-                            player.pause()
-                            savePosition()
-                        }
-                        // As when turning pages: reading now, not listening.
-                        if (player.active)
-                            barShown = false
-                        loadChapter(index, fragment ? { id: fragment } : { fraction: 0 })
+                        findShown = false
+                        jumpTo(index, fragment ? { id: fragment } : { fraction: 0 })
                     })
                 }
-            }
-            MenuItem {
-                text: lightPage ? qsTr("Dark page") : qsTr("Light page")
-                // After the pulley has closed: the new layout covers the page.
-                onDelayedClick: app.setPageColors(lightPage ? "dark" : "light")
-            }
-            MenuItem {
-                visible: !barShown && hasAudio
-                text: qsTr("Play")
-                onClicked: playFromPage()
             }
         }
 
@@ -673,6 +750,7 @@ WebViewPage {
             webView.addMessageListener("anchorman:highlighted")
             webView.addMessageListener("anchorman:hit")
             webView.addMessageListener("anchorman:start")
+            webView.addMessageListener("anchorman:found")
             page.start()
         }
 
@@ -761,6 +839,56 @@ WebViewPage {
                     color: parent.highlighted ? palette.highlightColor : palette.primaryColor
                     //: Playback speed on the button that opens the settings, e.g. "1.25×"
                     text: qsTr("%1×").arg(Number(app.playbackRate).toLocaleString(Qt.locale(), "f", 2))
+                }
+            }
+        }
+    }
+
+    // Going from hit to hit of the search; the player's bar takes its place.
+    Rectangle {
+        anchors.bottom: parent.bottom
+        width: parent.width
+        height: bar.height
+        color: pageColor
+        visible: findShown && !barShown
+
+        MouseArea {
+            anchors.fill: parent
+        }
+
+        Row {
+            anchors.centerIn: parent
+            spacing: Theme.paddingLarge
+
+            IconButton {
+                icon.source: "image://theme/icon-m-left"
+                enabled: findIndex > 0
+                onClicked: showHit(findIndex - 1)
+            }
+            BackgroundItem {
+                width: Theme.itemSizeExtraLarge
+                height: Theme.itemSizeSmall
+                anchors.verticalCenter: parent.verticalCenter
+                // Back to the list of hits.
+                onClicked: openFind()
+
+                Label {
+                    anchors.centerIn: parent
+                    color: parent.highlighted ? palette.highlightColor : palette.primaryColor
+                    //: Search hit shown and number of hits, e.g. "3 / 39"
+                    text: qsTr("%1 / %2").arg(findIndex + 1).arg(findHits.length)
+                }
+            }
+            IconButton {
+                icon.source: "image://theme/icon-m-right"
+                enabled: findIndex + 1 < findHits.length
+                onClicked: showHit(findIndex + 1)
+            }
+            IconButton {
+                icon.source: "image://theme/icon-m-clear"
+                onClicked: {
+                    findShown = false
+                    unmark()
                 }
             }
         }

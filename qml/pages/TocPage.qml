@@ -29,6 +29,8 @@ Page {
                 width: parent.width - x - Theme.horizontalPageMargin
                 anchors.verticalCenter: parent.verticalCenter
                 text: modelData.title
+                // Text from the book, never markup.
+                textFormat: Text.PlainText
                 truncationMode: TruncationMode.Fade
                 color: !parent.enabled ? Theme.secondaryColor
                      : (highlighted || modelData.spine === page.currentChapter)

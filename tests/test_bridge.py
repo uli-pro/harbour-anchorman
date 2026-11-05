@@ -248,6 +248,65 @@ class LibraryViewTest(TempDirTestCase):
         self.assertEqual(bridge.cached_library(cache_file, [books + "x"])["books"], [])
 
 
+class SearchTest(TempDirTestCase):
+
+    def setUp(self):
+        super().setUp()
+        self.addCleanup(setattr, bridge, "_index", None)
+        self.addCleanup(bridge._closed.clear)
+        self.root = bridge.open_book(self._epub(), os.path.join(self.tmp, "cache"))["root"]
+
+    def _epub(self):
+        epub = os.path.join(self.tmp, "book.epub")
+        make_epub(epub, mini_entries())
+        return epub
+
+    def run_search(self, key, root, query="", here=None, serial=0):
+        with mock.patch.object(bridge, "_send") as send:
+            bridge._search(key, root, query, here, serial)
+        return send.call_args_list
+
+    def test_search_sends_result(self):
+        calls = self.run_search("search", self.root, "happy prince", {"spine": 0, "id": "", "fraction": 0}, 7)
+        self.assertEqual(len(calls), 1)
+        event, serial, result = calls[0][0]
+        self.assertEqual((event, serial), ("search", 7))
+        self.assertGreater(result["total"], 0)
+        self.assertEqual(result["hits"][0]["chapter"], "Title Page")
+
+    def test_prepare_builds_index_quietly(self):
+        self.assertEqual(self.run_search("prepare", self.root), [])
+        index = bridge._index
+        self.assertEqual(index[0], self.root)
+        self.run_search("search", self.root, "prince")
+        self.assertIs(bridge._index, index)
+        bridge.drop_search("/other")
+        self.assertIs(bridge._index, index)
+        bridge.drop_search(self.root)
+        self.assertIsNone(bridge._index)
+
+    def test_unexpected_error_still_answers(self):
+        with mock.patch.object(bridge, "BookIndex", side_effect=ValueError("bad")), \
+                mock.patch("traceback.print_exc"):
+            calls = self.run_search("search", self.root + "x", "x", None, 2)
+        self.assertEqual(calls[0][0][:2], ("search", 2))
+        self.assertEqual(calls[0][0][2]["error"], "internal")
+
+    def test_index_of_a_book_closed_meanwhile_is_not_kept(self):
+        bridge.drop_search(self.root)
+        self.run_search("prepare", self.root)
+        self.assertIsNone(bridge._index)
+        # Opened again: kept.
+        with mock.patch.object(bridge._searcher, "submit"):
+            bridge.prepare_search(self.root)
+        self.run_search("prepare", self.root)
+        self.assertEqual(bridge._index[0], self.root)
+
+    def test_unreadable_book(self):
+        calls = self.run_search("search", self.tmp, "x", None, 1)
+        self.assertEqual(calls[0][0][2]["error"], "not_epub")
+
+
 class WorkerTest(unittest.TestCase):
 
     def test_newest_first_once_per_key_within_limit(self):

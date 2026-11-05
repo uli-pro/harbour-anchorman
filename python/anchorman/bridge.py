@@ -20,6 +20,7 @@ from .errors import EpubError
 from .overlay import read_overlay
 from .package import read_package, text_length
 from .paths import local_path
+from .search import BookIndex
 
 _MAX_KEY_LENGTH = 200
 
@@ -340,9 +341,66 @@ def _position_key(name):
     return "sha1:" + hashlib.sha1(name.encode("utf-8", "surrogateescape")).hexdigest()
 
 
+# The index of the book searched last: (root, BookIndex). Only the worker
+# thread builds it; a reference taken there stays usable if it is dropped.
+_index = None
+# Books closed: an index still being built for one of them is not kept.
+_closed = set()
+
+
+def prepare_search(root):
+    """Read the book's text in a thread, so the first search is quick."""
+    _closed.discard(root)
+    _searcher.submit("prepare", root, None, None, 0)
+
+
+def search(root, query, here, serial):
+    """Look for query in the book in a thread; the result comes as the event
+    ("search", serial, result), see search.BookIndex.search. here is the
+    reading position, as stored. Only the latest request waiting is run."""
+    _closed.discard(root)
+    _searcher.submit("search", root, query, here, serial)
+
+
+def drop_search(root):
+    """Forget the index of the book at root, which is being closed."""
+    global _index
+    _closed.add(root)
+    if _index is not None and _index[0] == root:
+        _index = None
+
+
+def _book_index(root):
+    global _index
+    index = _index
+    if index is None or index[0] != root:
+        index = (root, BookIndex(root))
+        if root not in _closed:
+            _index = index
+    return index[1]
+
+
+def _search(key, root, query, here, serial):
+    try:
+        index = _book_index(root)
+        if key == "prepare":
+            return
+        result = index.search(query, here)
+    except EpubError as e:
+        result = _error(e.code, e.detail)
+    except OSError as e:
+        result = _error("io", str(e))
+    except Exception as e:
+        # The search page waits for an answer.
+        traceback.print_exc()
+        result = _error("internal", repr(e))
+    _send("search", serial, result)
+
+
 def _error(code, detail):
     return {"error": code, "detail": detail}
 
 
 _scanner = Worker(_scan)
 _covers = Worker(_extract, _MAX_WAITING_COVERS)
+_searcher = Worker(_search)
