@@ -20,7 +20,8 @@ MAX_COVER_SIZE = 5 * 1024 * 1024
 # PNG and GIF are decoded at full size before they are scaled down; a small
 # file can hold a huge image. JPEG is decoded scaled.
 MAX_COVER_PIXELS = 4096
-_CACHE_VERSION = 2
+# Raised whenever what is read from a book changes, so that all are read again.
+_CACHE_VERSION = 4
 # Errors that say something about the book. Others (a card pulled out, no
 # memory) may pass, so the book is read again next time.
 _BOOK_ERRORS = (EpubError, zipfile.BadZipFile, zipfile.LargeZipFile, KeyError, ValueError,

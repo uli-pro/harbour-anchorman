@@ -10,6 +10,12 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../qml/pages/AuthorPage.qml" line="33"/>
+        <source>with %1</source>
+        <extracomment>Further authors of a book, e.g. &quot;with Andrew Child&quot;</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <location filename="../qml/pages/AuthorPage.qml" line="27"/>
         <source>Cannot be opened</source>
         <extracomment>The book is damaged or protected by DRM</extracomment>
@@ -26,17 +32,17 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/AuthorPage.qml" line="42"/>
+        <location filename="../qml/pages/AuthorPage.qml" line="46"/>
         <source>Unknown author</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/AuthorPage.qml" line="47"/>
+        <location filename="../qml/pages/AuthorPage.qml" line="51"/>
         <source>Other books</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/AuthorPage.qml" line="61"/>
+        <location filename="../qml/pages/AuthorPage.qml" line="65"/>
         <source>Opening book</source>
         <translation type="unfinished"></translation>
     </message>

@@ -202,6 +202,10 @@ class LibraryViewTest(TempDirTestCase):
                          [("«Q»", "#", 1), ("Ann Ärger", "A", 4), ("bob Brown", "B", 1),
                           ("", "", 1)])
         self.assertEqual(view["books"][1]["search"], "ann arger book 2 saga")
+        coauthored = bridge.library_view([entry("/b/8", "T", ["Child, Lee", "Child, Andrew", "Prince"])])
+        self.assertEqual(coauthored["books"][0]["coauthors"], ["Andrew Child", "Prince"])
+        for name in ("Sammy Davis, Jr.", "King, Jr., Martin"):
+            self.assertEqual(bridge._natural(name), name)
         json.dumps(view)
 
     def test_replaced_and_copies(self):

@@ -27,6 +27,10 @@ Page {
             parts.push(qsTr("Cannot be opened"))
         if (book.duplicate)
             parts.push(book.removable ? qsTr("SD card") : qsTr("Device"))
+        // Last: a long list is cut off at the edge.
+        if (book.coauthors.length > 0)
+            //: Further authors of a book, e.g. "with Andrew Child"
+            parts.push(qsTr("with %1").arg(book.coauthors.join(", ")))
         return parts.join(" · ")
     }
 

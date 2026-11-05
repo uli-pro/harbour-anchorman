@@ -142,6 +142,7 @@ def library_view(entries):
         books.append({
             "path": entry["path"], "key": library.cover_name(entry),
             "title": info["title"], "author": author, "authors": "; ".join(info["authors"]),
+            "coauthors": [_natural(name) for name in info["authors"][1:]],
             "sort": sort, "group": fold(sort), "letter": _letter(sort),
             "series": info["series"],
             "index": info["index"], "cover": info["cover"], "audio": info["audio"],
@@ -207,6 +208,18 @@ def fold(text):
     """text for comparing: lower case, without accents (ä → a, ß → ss)."""
     text = unicodedata.normalize("NFKD", text)
     return "".join(c for c in text if not unicodedata.combining(c)).casefold()
+
+
+_SUFFIXES = {"jr.", "jr", "sr.", "sr", "ii", "iii", "iv"}
+
+
+def _natural(name):
+    """ "Child, Andrew" as "Andrew Child"; other forms stay, also
+    "Sammy Davis, Jr."."""
+    parts = name.split(", ")
+    if len(parts) != 2 or parts[1].casefold() in _SUFFIXES:
+        return name
+    return parts[1] + " " + parts[0]
 
 
 def _letter(sort):

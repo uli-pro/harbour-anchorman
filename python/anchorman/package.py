@@ -113,7 +113,7 @@ def read_info(opf, opf_path):
         identifier=_identifier(opf, metadata),
         title=_first_text(metadata, _DC + "title"),
         authors=[name for name, _ in creators],
-        sort=_sort_name(metadata, creators[0]) if creators else "",
+        sort=_sort_name(metadata, creators[0], len(creators)) if creators else "",
         series=series,
         series_index=index,
         cover=_cover(metadata, manifest),
@@ -277,24 +277,37 @@ def _authors(metadata):
 
 
 def _creators(metadata):
-    """(name, element) of the creators that are not narrators."""
+    """(name, element) of the authors: creators without a role or with
+    "aut"; translators, illustrators, publishers and narrators are not. A
+    book naming none that way gets all but its narrators."""
     # EPUB 3 states roles in <meta refines="#id" property="role">,
     # EPUB 2 in an opf:role attribute.
     roles = _refinements(metadata, "role")
-    creators = []
+    authors, others = [], []
     for creator in metadata.iterfind(_DC + "creator"):
-        role = roles.get(creator.get("id"), creator.get(_OPF + "role"))
+        role = roles.get(creator.get("id"), creator.get(_OPF + "role")) or "aut"
         name = _text(creator)
-        if name and role != "nrt":
-            creators.append((name, creator))
-    return creators
+        if name and role == "aut":
+            authors.append((name, creator))
+        elif name and role != "nrt":
+            others.append((name, creator))
+    return authors or others
 
 
-def _sort_name(metadata, creator):
+def _sort_name(metadata, creator, count):
     name, element = creator
     sort = (_refinements(metadata, "file-as").get(element.get("id"))
             or element.get(_OPF + "file-as") or "")
-    return " ".join(sort.split()) or name
+    # Calibre puts the sort names of all authors into the first one's:
+    # "Child, Lee & Child, Andrew"; one part for each author.
+    parts = sort.split(" & ")
+    if count > 1 and len(parts) == count:
+        sort = parts[0]
+    sort = " ".join(sort.split())
+    # Some books carry a placeholder although the author is known.
+    if sort.casefold() in ("unbekannt", "unknown"):
+        sort = ""
+    return sort or name
 
 
 def _series(metadata):
