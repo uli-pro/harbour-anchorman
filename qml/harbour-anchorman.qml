@@ -54,6 +54,9 @@ ApplicationWindow {
     // A cover taken out of a book by Python's cover thread; file is "" if
     // the book has none that can be shown.
     signal coverReady(string key, string file)
+    // The result of a search in the book, see FindPage.
+    signal searchFinished(int serial, var result)
+    property int searchSerial: 0
 
     // The open ReaderPage, for the cover's play button.
     property var reader: null
@@ -187,6 +190,7 @@ ApplicationWindow {
             addImportPath(Qt.resolvedUrl("../python"))
             importModule("anchorman.bridge", function () {
                 setHandler("cover", app.coverReady)
+                setHandler("search", app.searchFinished)
                 app.pythonReady = true
             })
         }
