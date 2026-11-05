@@ -157,6 +157,12 @@ class PackageTest(TempDirTestCase):
         self.assertEqual(book.authors, ["Ann Author", "Una Unknown"])
         self.assertEqual(book.cover, "OPS/cover.jpg")
 
+    def test_cover_must_be_image(self):
+        book = self.book(
+            metadata='<meta name="cover" content="page"/>',
+            manifest=CHAPTER + '<item id="page" href="cover.xhtml" media-type="application/xhtml+xml"/>')
+        self.assertIsNone(book.cover)
+
     def test_bad_duration_ignored(self):
         book = self.book(metadata='<meta property="media:duration">soon</meta>')
         self.assertIsNone(book.duration)

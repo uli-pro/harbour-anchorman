@@ -6,6 +6,12 @@ import Amber.Mpris 1.0
 MprisPlayer {
     readonly property var reader: app.reader
 
+    // The lock screen shows these as rich text, outside the sandbox; a tag
+    // in a book's title could load an image from the net.
+    function plain(text) {
+        return String(text).replace(/</g, "\u2039")
+    }
+
     serviceName: "anchorman"
     identity: "Anchorman"
     desktopEntry: "harbour-anchorman"
@@ -24,8 +30,9 @@ MprisPlayer {
                   : reader.playing ? Mpris.Playing : Mpris.Paused
 
     metaData {
-        title: reader !== null ? reader.book.title : ""
-        contributingArtist: reader !== null ? reader.book.authors : []
+        title: reader !== null ? plain(reader.book.title) : ""
+        // A list would be shown as "A,B".
+        contributingArtist: reader !== null ? [plain(reader.book.authors.join("; "))] : []
         artUrl: reader !== null ? reader.coverUrl : ""
     }
 

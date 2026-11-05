@@ -187,15 +187,20 @@ def _authors(metadata):
 
 
 def _cover(metadata, manifest):
+    # Only images: the EPUB 2 entry may name the cover page instead.
     for item in manifest.values():
-        if "cover-image" in item.properties:
+        if "cover-image" in item.properties and _is_image(item):
             return item.path
     for meta in metadata.iterfind(_OPF + "meta"):
         if meta.get("name") == "cover":
             item = manifest.get(meta.get("content"))
-            if item is not None:
+            if item is not None and _is_image(item):
                 return item.path
     return None
+
+
+def _is_image(item):
+    return item.media_type.startswith("image/")
 
 
 def _duration(metadata):

@@ -228,6 +228,15 @@ Item {
         arm()
     }
 
+    // A file loaded at the end of the previous one reports the stop of that
+    // one only after play() was called, which drops the call (seen on the
+    // device). Which of the two signals comes last may vary.
+    function retryPlay() {
+        if (playing && !waiting && audio.playbackState === Audio.StoppedState
+                && (audio.status === Audio.Loaded || audio.status === Audio.Buffered))
+            audio.play()
+    }
+
     // While paused the new rate is taken up by resume().
     onRateChanged: {
         if (playing && index >= 0)
@@ -248,14 +257,11 @@ Item {
             if (status === Audio.EndOfMedia && player.playing && player.index >= 0
                     && player.pendingSeek < 0) {
                 player.advance()
-            } else if ((status === Audio.Loaded || status === Audio.Buffered) && player.playing
-                       && playbackState === Audio.StoppedState) {
-                // A file loaded at the end of the previous one reports the
-                // stop of that one only after play() was called, which drops
-                // the call (seen on the device).
-                play()
+            } else {
+                player.retryPlay()
             }
         }
+        onPlaybackStateChanged: player.retryPlay()
         onError: {
             console.warn("Audio error", error, errorString, source)
             player.stop()

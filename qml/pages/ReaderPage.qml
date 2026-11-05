@@ -369,13 +369,15 @@ WebViewPage {
         if (player.playing)
             pause()
         else
-            playFromPage()
+            play()
     }
 
-    // From the lock screen or headphones: on where it paused, without a
-    // round trip to the page, which nobody looks at.
+    // Paused while listening: on where it stopped, without a round trip to
+    // the page, which nobody looks at on the lock screen. Otherwise from the
+    // page shown.
     function play() {
-        if (player.playing)
+        // Closing: the page stays until its animation ends.
+        if (player.playing || closed)
             return
         if (player.active && barShown)
             player.resume()
@@ -390,12 +392,16 @@ WebViewPage {
         savePosition()
     }
 
+    // Only while listening: paused and turned away, a sentence would pull
+    // the page back.
     function nextSentence() {
-        player.next()
+        if (barShown)
+            player.next()
     }
 
     function previousSentence() {
-        player.previous()
+        if (barShown)
+            player.previous()
     }
 
     function followSentence(index, i) {
@@ -603,6 +609,9 @@ WebViewPage {
                             player.pause()
                             savePosition()
                         }
+                        // As when turning pages: reading now, not listening.
+                        if (player.active)
+                            barShown = false
                         loadChapter(index, fragment ? { id: fragment } : { fraction: 0 })
                     })
                 }

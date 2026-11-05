@@ -72,45 +72,45 @@
 <context>
     <name>ReaderPage</name>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="506"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="512"/>
         <source>The narration could not be played.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="541"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="547"/>
         <source>Chapter %1/%2</source>
         <extracomment>Chapter in the book, e.g. &quot;Chapter 3/12&quot;</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="557"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="563"/>
         <source>Page %1/%2</source>
         <extracomment>Estimated page in the whole book, e.g. &quot;Page 30/295&quot;</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="581"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="587"/>
         <source>Settings</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="612"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="621"/>
         <source>Play</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="718"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="727"/>
         <source>%1×</source>
         <extracomment>Playback speed on the button that opens the settings, e.g. &quot;1.25×&quot;</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="585"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="591"/>
         <source>Library</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="594"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="600"/>
         <source>Contents</source>
         <translation type="unfinished"></translation>
     </message>
