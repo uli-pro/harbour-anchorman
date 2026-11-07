@@ -161,8 +161,10 @@ Page {
         if (initialQuery.trim().length < 2)
             search()
     }
+    // The keyboard only when there is nothing else to see: it would push
+    // the history out of sight.
     onStatusChanged: {
-        if (status === PageStatus.Active && query === "")
+        if (status === PageStatus.Active && query === "" && (!hasAudio || !searching && places.length === 0))
             listView.headerItem.field.forceActiveFocus()
     }
 
@@ -192,6 +194,8 @@ Page {
             } else {
                 fillHistory(result.sessions)
             }
+            if (places.length === 0 && query === "" && status === PageStatus.Active)
+                listView.headerItem.field.forceActiveFocus()
         }
     }
 
@@ -216,22 +220,25 @@ Page {
             width: listView.width
 
             PageHeader {
-                title: page.hasAudio
-                       //: Title of the page for searching the book and its listening history
-                       ? qsTr("Find & history")
-                       //: Title of the page for searching the book
-                       : qsTr("Find")
+                visible: !page.hasAudio
+                //: Title of the page for searching the book
+                title: qsTr("Find")
             }
 
-            // With the history below, the search gets a heading of its own.
+            // With the history below, the two parts have headings instead
+            // of the page.
             Column {
                 x: Theme.horizontalPageMargin
                 width: parent.width - 2 * x
                 visible: page.hasAudio
 
+                Item {
+                    width: 1
+                    height: Theme.paddingLarge
+                }
+
                 Label {
                     width: parent.width
-                    font.pixelSize: Theme.fontSizeLarge
                     color: Theme.highlightColor
                     truncationMode: TruncationMode.Fade
                     //: Heading of the search on the page with search and listening history
@@ -242,11 +249,11 @@ Page {
                     width: parent.width
                     // Room for the hits while typing.
                     visible: page.query.trim().length < 2
-                    wrapMode: Text.Wrap
+                    truncationMode: TruncationMode.Fade
                     font.pixelSize: Theme.fontSizeExtraSmall
                     color: Theme.secondaryHighlightColor
                     //: Below the heading of the search
-                    text: qsTr("Finds paragraphs with all words, in any order.")
+                    text: qsTr("All words, in any order")
                 }
             }
 
@@ -282,7 +289,6 @@ Page {
 
                 Label {
                     width: parent.width
-                    font.pixelSize: Theme.fontSizeLarge
                     color: Theme.highlightColor
                     truncationMode: TruncationMode.Fade
                     text: parent.history
@@ -299,11 +305,11 @@ Page {
                 Label {
                     width: parent.width
                     visible: parent.history
-                    wrapMode: Text.Wrap
+                    truncationMode: TruncationMode.Fade
                     font.pixelSize: Theme.fontSizeExtraSmall
                     color: Theme.secondaryHighlightColor
                     //: Below the heading of the listening history
-                    text: qsTr("Where you listened, newest first. Tap an entry to go there.")
+                    text: qsTr("Newest first – tap to go there")
                 }
             }
         }

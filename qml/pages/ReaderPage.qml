@@ -660,12 +660,28 @@ WebViewPage {
         }
     }
 
-    // Only now: while the search page was shown, its keyboard made the view
-    // lower, and a chapter laid out then has far more pages than later
-    // (seen on the device: 64 instead of 13).
+    // Back from the search page: see showPending().
     onStatusChanged: {
         if (status !== PageStatus.Active)
             return
+        if (pendingHit >= 0 || pendingPlace) {
+            keyboardGone.restart()
+            heightSettled.restart()
+        } else if (ready) {
+            // Gecko drops the selection while another page is shown.
+            flickable.webView.sendAsyncMessage("bookfish:remark", {})
+        }
+    }
+
+    // A hit or a place from the search page, once this page is back, the
+    // keyboard has gone and the view has its full height again: until then
+    // it is lower, and a chapter laid out meanwhile has far more pages (seen
+    // on the device: 64 instead of 13). The view grows back for some 300 ms
+    // after the keyboard reports it has gone and this page is active.
+    function showPending(force) {
+        if (status !== PageStatus.Active || (!force && (keyboardShown() || heightSettled.running)))
+            return
+        keyboardGone.stop()
         if (pendingHit >= 0) {
             var index = pendingHit
             pendingHit = -1
@@ -674,10 +690,30 @@ WebViewPage {
             var place = pendingPlace
             pendingPlace = null
             showPlace(place)
-        } else if (ready) {
-            // Gecko drops the selection while another page is shown.
-            flickable.webView.sendAsyncMessage("bookfish:remark", {})
         }
+    }
+
+    function keyboardShown() {
+        return Qt.inputMethod.visible || Qt.inputMethod.keyboardRectangle.height > 0
+    }
+
+    Connections {
+        target: Qt.inputMethod
+        onVisibleChanged: page.showPending()
+        onKeyboardRectangleChanged: page.showPending()
+    }
+
+    Timer {
+        id: heightSettled
+        interval: 250
+        onTriggered: page.showPending()
+    }
+
+    Timer {
+        id: keyboardGone
+        // Should the keyboard never report that it has gone.
+        interval: 1500
+        onTriggered: page.showPending(true)
     }
 
     Component.onCompleted: app.reader = page
@@ -836,6 +872,10 @@ WebViewPage {
         }
 
         webView.active: true
+        onHeightChanged: {
+            if (page.pendingHit >= 0 || page.pendingPlace)
+                heightSettled.restart()
+        }
         // WebViewFlickable assumes the page fills the screen; below the
         // header, 100vh would reach past the bottom edge.
         webView.viewportHeight: flickable.height

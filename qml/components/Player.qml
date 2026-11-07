@@ -300,6 +300,7 @@ Item {
     }
 
     function interrupt(stopped) {
+        console.log("Narration", stopped ? "stopped" : "paused", "by the system, audio", audio.availability)
         why = "interrupted"
         interrupted = true
         stoppedOutside = stopped
@@ -315,6 +316,7 @@ Item {
     // by itself, and so does listening. Anything else is paused again; it
     // could be the loudspeaker in a pocket.
     function playingByItself() {
+        console.log("Narration played on by the system,", interrupted && busy ? "accepted" : "paused again")
         if (interrupted && busy) {
             taken()
             playing = true
@@ -388,6 +390,7 @@ Item {
             }
         }
         onAvailabilityChanged: {
+            console.log("Audio availability", availability, "interrupted", player.interrupted)
             if (availability === Audio.Busy && player.interrupted && busyWindow.running)
                 player.busy = true
         }
