@@ -14,6 +14,7 @@ ApplicationWindow {
     readonly property string libraryFolder: libraryFolderSetting.value || ""
     readonly property string cacheFolder: StandardPaths.cache + "/books"
     readonly property string positionsFile: StandardPaths.data + "/positions.json"
+    readonly property string historyFile: StandardPaths.data + "/history.json"
     readonly property string libraryCache: StandardPaths.cache + "/library.json"
     readonly property string coversFolder: StandardPaths.cache + "/covers"
     // Text size in screen pixels, like FBReader; the frame script converts
@@ -56,6 +57,8 @@ ApplicationWindow {
     signal coverReady(string key, string file)
     // The result of a search in the book, see FindPage.
     signal searchFinished(int serial, var result)
+    // The listening history of a book, see FindPage.
+    signal historyFinished(int serial, var result)
     property int searchSerial: 0
 
     // The open ReaderPage, for the cover's play button.
@@ -191,6 +194,7 @@ ApplicationWindow {
             importModule("bookfish.bridge", function () {
                 setHandler("cover", app.coverReady)
                 setHandler("search", app.searchFinished)
+                setHandler("history", app.historyFinished)
                 app.pythonReady = true
             })
         }

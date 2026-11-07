@@ -18,6 +18,14 @@ Readalouds can be created from an EPUB and an audiobook with
   again, the sentence heard last is marked; tap it to go on listening.
 - **Find** (pull-down menu) searches the book for paragraphs holding all
   words typed, in any order. A line in the hits shows where you are.
+- **History:** in a readaloud the same page, with nothing typed, lists where
+  you listened: start, every five minutes, and where it ended. Tap an entry
+  to go there.
+- **Sleep timer** (button in the playback bar): stop after 15 to 60 minutes,
+  fading out over the last 20 seconds, or at the end of the chapter.
+- The place heard is saved whenever listening stops, also when the phone
+  stops it (headphones out of reach, an alarm, a call). After an alarm or a
+  call listening goes on by itself; after losing the headphones it does not.
 
 ## Building
 

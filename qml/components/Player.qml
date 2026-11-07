@@ -8,6 +8,11 @@ import QtMultimedia 5.6
 // The audio file runs on from clip to clip; it is only sought when a clip
 // does not follow the previous one. A timer is set to the end of the clip
 // instead of polling the position.
+//
+// Sailfish may pause the audio itself: headphones out of reach, an alarm,
+// a call (seen on the device). That counts as a pause, so the place is
+// saved and nothing plays on unasked; only after an alarm or a call, when
+// Sailfish plays on by itself, listening goes on.
 Item {
     id: player
 
@@ -26,11 +31,24 @@ Item {
     readonly property bool active: index >= 0
     // Guarded: clips and index change one after the other.
     readonly property string currentId: index >= 0 && index < clips.length ? clips[index].id : ""
+    // For the sleep timer: fading out, and pausing once the chapter is
+    // over, with the next one loaded.
+    property real volume: 1
+    property bool holdAtChapterEnd: false
+    // Why playing last became false: "pause", "interrupted", "error", or
+    // "held" at the end of a chapter.
+    property string why: "pause"
+    // Paused or stopped by Sailfish, not by us, and not taken up since;
+    // busy: meanwhile the audio was taken by an alarm or a call.
+    property bool interrupted: false
+    property bool busy: false
 
     signal sentence(int chapter, int index)
     signal finished(int chapter)
     signal marked(int n)
     signal failed()
+    // Paused at the end of a chapter, see holdAtChapterEnd.
+    signal held()
 
     property string loadedPath: ""
     property int pendingSeek: -1
@@ -41,6 +59,9 @@ Item {
     // Set by next() at the end of a chapter: the rest of the clip is not
     // played, so the next chapter is sought even if it follows on.
     property bool skipping: false
+    // A file is being loaded; the stop that comes with it is ours.
+    property bool loading: false
+    property bool stoppedOutside: false
 
     // In ms within the audio file; read when needed, the property binding
     // of Audio is only updated once a second.
@@ -63,6 +84,7 @@ Item {
             pendingSeek = ms
             if (path !== loadedPath || reload) {
                 loadedPath = path
+                loading = true
                 audio.source = ""
                 audio.playbackRate = rate
                 loadedRate = rate
@@ -76,6 +98,8 @@ Item {
     function start(chapterIndex, list, i, offset) {
         chapter = chapterIndex
         clips = list
+        // Before playing: the page notes where listening starts.
+        index = i
         playing = true
         jump(i, offset || 0)
     }
@@ -90,23 +114,42 @@ Item {
         clips = list
         index = 0
         resetMarks()
+        if (holdAtChapterEnd) {
+            // After the new chapter is set, so its first sentence is the
+            // place saved; before loading, which would play.
+            holdAtChapterEnd = false
+            if (playing) {
+                why = "held"
+                alarm.stop()
+                // First: the pause is reported at once, and must not look
+                // like one by Sailfish.
+                playing = false
+                audio.pause()
+            }
+            // Also if interrupted meanwhile: not on by itself after.
+            busy = false
+            held()
+        }
         if (seek)
             load(list[0].audio, list[0].begin)
         sentence(chapter, 0)
         arm()
     }
 
-    function jump(i, offset) {
+    function jump(i, offset, reload) {
+        taken()
         waiting = false
         skipping = false
         index = i
         resetMarks()
-        load(clips[i].audio, clips[i].begin + (offset || 0))
+        load(clips[i].audio, clips[i].begin + (offset || 0), reload)
         sentence(chapter, index)
         arm()
     }
 
     function pause() {
+        taken()
+        why = "pause"
         playing = false
         alarm.stop()
         audio.pause()
@@ -115,6 +158,13 @@ Item {
     function resume() {
         if (index < 0)
             return
+        if (stoppedOutside) {
+            // Nothing is left of the file; the sentence from its start.
+            playing = true
+            jump(index, 0, true)
+            return
+        }
+        taken()
         playing = true
         if (loadedRate !== rate)
             load(loadedPath, pendingSeek >= 0 ? pendingSeek : audio.position, true)
@@ -123,6 +173,8 @@ Item {
     }
 
     function stop() {
+        taken()
+        why = "pause"
         playing = false
         alarm.stop()
         audio.stop()
@@ -230,11 +282,61 @@ Item {
 
     // A file loaded at the end of the previous one reports the stop of that
     // one only after play() was called, which drops the call (seen on the
-    // device). Which of the two signals comes last may vary.
+    // device). Which of the two signals comes last may vary. Only while
+    // loading: a file stopped by Sailfish must not start again.
     function retryPlay() {
-        if (playing && !waiting && audio.playbackState === Audio.StoppedState
+        if (playing && loading && !waiting && audio.playbackState === Audio.StoppedState
                 && (audio.status === Audio.Loaded || audio.status === Audio.Buffered))
             audio.play()
+    }
+
+    // The user (or the page) acts: an interruption is over.
+    function taken() {
+        interrupted = false
+        busy = false
+        stoppedOutside = false
+        stopCheck.stop()
+        busyWindow.stop()
+    }
+
+    function interrupt(stopped) {
+        why = "interrupted"
+        interrupted = true
+        stoppedOutside = stopped
+        busy = audio.availability === Audio.Busy
+        // An alarm or a call reports the audio busy right after pausing it
+        // (seen on the device); later it would be another cause.
+        busyWindow.restart()
+        alarm.stop()
+        playing = false
+    }
+
+    // Sound without being asked: after an alarm or a call Sailfish plays on
+    // by itself, and so does listening. Anything else is paused again; it
+    // could be the loudspeaker in a pocket.
+    function playingByItself() {
+        if (interrupted && busy) {
+            taken()
+            playing = true
+            arm()
+        } else {
+            audio.pause()
+        }
+    }
+
+    // The time left in the chapter in ms at the current rate, or -1 if a
+    // clip has no end.
+    function chapterLeft() {
+        if (index < 0)
+            return -1
+        var position = pendingSeek >= 0 ? pendingSeek : audio.position
+        var left = 0
+        for (var i = index; i < clips.length; ++i) {
+            if (!hasEnd(clips[i]))
+                return -1
+            left += i === index ? Math.max(0, clips[i].end - position) : clips[i].end - clips[i].begin
+        }
+        return left / rate
     }
 
     // While paused the new rate is taken up by resume().
@@ -245,6 +347,8 @@ Item {
 
     Audio {
         id: audio
+
+        volume: player.volume
 
         onSeekableChanged: {
             if (seekable && player.pendingSeek >= 0) {
@@ -261,11 +365,66 @@ Item {
                 player.retryPlay()
             }
         }
-        onPlaybackStateChanged: player.retryPlay()
+        onPlaybackStateChanged: {
+            switch (playbackState) {
+            case Audio.PlayingState:
+                if (player.loading)
+                    settle.restart()
+                if (!player.playing)
+                    player.playingByItself()
+                break
+            case Audio.PausedState:
+                // Our own pause clears playing first.
+                if (player.playing)
+                    player.interrupt(false)
+                break
+            default:
+                // At the end of a file the stop may come before the status
+                // EndOfMedia; that one moves on to the next clip or chapter.
+                if (player.playing && !player.loading && !player.waiting)
+                    stopCheck.restart()
+                else
+                    player.retryPlay()
+            }
+        }
+        onAvailabilityChanged: {
+            if (availability === Audio.Busy && player.interrupted && busyWindow.running)
+                player.busy = true
+        }
         onError: {
             console.warn("Audio error", error, errorString, source)
-            player.stop()
+            player.why = "error"
+            alarm.stop()
+            // The page saves the sentence now, while index still holds it.
+            player.playing = false
             player.failed()
+            player.stop()
+        }
+    }
+
+    Timer {
+        id: busyWindow
+        interval: 500
+    }
+
+    // The stop of the previous file may come after the new one plays (see
+    // retryPlay), so loading is over once playing has lasted a while.
+    Timer {
+        id: settle
+        interval: 1500
+        onTriggered: {
+            if (audio.playbackState === Audio.PlayingState)
+                player.loading = false
+        }
+    }
+
+    Timer {
+        id: stopCheck
+        interval: 500
+        onTriggered: {
+            if (player.playing && !player.loading && !player.waiting
+                    && audio.playbackState === Audio.StoppedState && audio.status !== Audio.EndOfMedia)
+                player.interrupt(true)
         }
     }
 

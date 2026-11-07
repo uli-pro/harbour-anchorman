@@ -12,9 +12,10 @@ File format: {"books": {key: position}, "last": path of the EPUB file,
 "recent": paths of the EPUB files opened last, newest first}.
 """
 
-import json
 import math
 import os
+
+from . import jsonfile
 
 MAX_SIZE = 1024 * 1024
 RECENT = 3
@@ -56,14 +57,7 @@ def load_recent(path):
 
 def _read_all(path):
     state = {"books": {}, "last": None, "recent": []}
-    try:
-        with open(path, "rb") as f:
-            data = f.read(MAX_SIZE + 1)
-        if len(data) > MAX_SIZE:
-            return state
-        stored = json.loads(data.decode("utf-8"))
-    except (OSError, ValueError, RecursionError):
-        return state
+    stored = jsonfile.read(path, MAX_SIZE)
     if isinstance(stored, dict):
         if isinstance(stored.get("books"), dict):
             state["books"] = stored["books"]
@@ -75,18 +69,7 @@ def _read_all(path):
 
 
 def _write(path, state):
-    # A new file renamed over the old one: a crash never leaves a
-    # half-written file.
-    directory = os.path.dirname(path)
-    if directory:
-        os.makedirs(directory, exist_ok=True)
-    tmp = path + ".tmp"
-    # ASCII escapes also cover file names that are not valid UTF-8.
-    with open(tmp, "w", encoding="ascii") as f:
-        json.dump(state, f, sort_keys=True)
-        f.flush()
-        os.fsync(f.fileno())
-    os.replace(tmp, path)
+    jsonfile.write(path, state)
 
 
 def _valid(position):

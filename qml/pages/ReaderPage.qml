@@ -63,6 +63,8 @@ WebViewPage {
     property bool findShown: false
     // A hit chosen in the list, shown once this page is back.
     property int pendingHit: -1
+    // An entry of the listening history chosen, likewise; see FindPage.
+    property var pendingPlace: null
     // A bar covers the bottom of the text: the player's or the search's.
     readonly property bool lowerBar: barShown || findShown
     readonly property bool listening: player.active && player.chapter === chapter
@@ -74,6 +76,9 @@ WebViewPage {
     // Left for the library: the page is going, and must neither lay out
     // nor save again (it would save the top of the page over the sentence).
     property bool closed: false
+    // How the next end of listening goes into the history, if not as the
+    // player says: "timer", "close" or "end".
+    property string stopKind: ""
 
     // Turning pages needs the horizontal swipe; the library is in the pulley.
     backNavigation: false
@@ -372,6 +377,7 @@ WebViewPage {
     // again, around the sentence the player has just begun.
     function stopPlayer() {
         player.stop()
+        sleepTimer.cancel()
         barShown = false
         highlightId = ""
     }
@@ -420,10 +426,7 @@ WebViewPage {
     function jumpTo(index, target) {
         resumeId = ""
         jumpId = ""
-        if (player.playing) {
-            player.pause()
-            savePosition()
-        }
+        pause()
         if (player.active)
             barShown = false
         loadChapter(index, target)
@@ -439,12 +442,28 @@ WebViewPage {
 
     function openFind() {
         var find = pageStack.push(Qt.resolvedUrl("FindPage.qml"),
-                                  { root: book.root, here: here(), initialQuery: findQuery })
+                                  { root: book.root, here: here(), initialQuery: findQuery,
+                                    bookKey: book.key, hasAudio: hasAudio })
         find.selected.connect(function (hits, index, query) {
             findHits = hits
             findQuery = query
             pendingHit = index
         })
+        find.chosen.connect(function (place) {
+            pendingPlace = place
+        })
+    }
+
+    // A sentence of the listening history: marked like a hit, without
+    // going on to other hits.
+    function showPlace(place) {
+        // The book may have changed since.
+        if (place.spine >= book.spine.length)
+            return
+        findShown = false
+        jumpTo(place.spine, place.offset >= 0
+               ? { find: { offset: place.offset, length: place.length, text: place.text } }
+               : { fraction: 0 })
     }
 
     // The place shown in the search as the reader's: the sentence heard,
@@ -481,11 +500,50 @@ WebViewPage {
             playFromPage()
     }
 
+    // Paused by hand, also on the lock screen or the headphones: whoever
+    // pauses is awake, so the sleep timer goes off. Saved in
+    // playbackChanged().
     function pause() {
-        if (!player.playing)
+        if (!player.playing) {
+            // Paused by an alarm or a call: then not on by itself.
+            player.busy = false
             return
+        }
+        // First, or the volume the timer turns up would be heard.
         player.pause()
+        sleepTimer.cancel()
+    }
+
+    // Every end of listening saves the place first, however it came: by
+    // hand, by Sailfish, the timer, an error, the library or the end of the
+    // book. Then the listening history notes it.
+    function playbackChanged() {
+        if (player.playing) {
+            // One set while not playing would apply to a later pause.
+            stopKind = ""
+            record("start")
+            return
+        }
         savePosition()
+        var kinds = { pause: "pause", interrupted: "interrupted", error: "interrupted", held: "timer" }
+        record(stopKind || kinds[player.why] || "pause")
+        stopKind = ""
+    }
+
+    function record(kind) {
+        if (player.index < 0)
+            return
+        py.call("bookfish.bridge.add_history",
+                [app.historyFile, book.key, kind, { spine: player.chapter, id: player.currentId }],
+                function (result) {
+                    if (result !== true)
+                        console.warn("Cannot note listening history", result.error, result.detail)
+                })
+    }
+
+    function openSleepTimer() {
+        pageStack.push(Qt.resolvedUrl("SleepTimerPage.qml"),
+                       { timer: sleepTimer, chapterLeft: player.chapterLeft() })
     }
 
     // Only while listening: paused and turned away, a sentence would pull
@@ -528,7 +586,7 @@ WebViewPage {
                 || upcoming.chapter === -2)
             return
         if (upcoming.chapter < 0) {
-            savePosition()
+            stopKind = "end"
             stopPlayer()  // end of the book
         } else {
             player.continueWith(upcoming.chapter, upcoming.clips)
@@ -546,9 +604,12 @@ WebViewPage {
     function turn(delta) {
         if (!ready)
             return
-        // Paused and turning pages: reading, not listening.
-        if (player.active && !player.playing)
+        // Paused and turning pages: reading, not listening; also after an
+        // alarm or a call, so it does not play on by itself.
+        if (player.active && !player.playing) {
             barShown = false
+            player.busy = false
+        }
         resumeId = ""
         jumpId = ""
         flickable.webView.sendAsyncMessage("bookfish:turn", { delta: delta })
@@ -560,11 +621,15 @@ WebViewPage {
         savedAt = Date.now()
         // The sentence heard, unless the reader paused and turned away; or
         // the one heard before the book was closed, until pages are turned.
-        var heardId = listening && (player.playing || barShown) ? player.currentId
-                    : !player.active ? resumeId : ""
+        // The player's chapter: on a new one it is ahead of the page until
+        // that is laid out.
+        var heard = player.active && (player.playing || barShown)
+        var spine = heard ? player.chapter : chapter
+        var heardId = heard ? player.currentId : !player.active ? resumeId : ""
         py.call("bookfish.bridge.save_position",
-                [app.positionsFile, book.key, { spine: chapter, id: heardId || firstId,
-                                                fraction: fraction, heard: heardId !== "" }],
+                [app.positionsFile, book.key, { spine: spine, id: heardId || firstId,
+                                                fraction: spine === chapter ? fraction : 0,
+                                                heard: heardId !== "" }],
                 function (result) {
                     if (result !== true)
                         console.warn("Cannot save position", result.error, result.detail)
@@ -605,6 +670,10 @@ WebViewPage {
             var index = pendingHit
             pendingHit = -1
             showHit(index)
+        } else if (pendingPlace) {
+            var place = pendingPlace
+            pendingPlace = null
+            showPlace(place)
         } else if (ready) {
             // Gecko drops the selection while another page is shown.
             flickable.webView.sendAsyncMessage("bookfish:remark", {})
@@ -629,10 +698,36 @@ WebViewPage {
             if (n < page.splits.length)
                 flickable.webView.sendAsyncMessage("bookfish:show", { page: page.splits[n].page })
         }
+        onPlayingChanged: page.playbackChanged()
+        // Saved already, see playbackChanged().
         onFailed: {
             page.stopPlayer()
             app.showError(qsTr("The narration could not be played."))
         }
+    }
+
+    SleepTimer {
+        id: sleepTimer
+
+        player: player
+        onExpired: {
+            if (player.playing) {
+                stopKind = "timer"
+                player.pause()
+            } else {
+                // Expired during an alarm or a call: not on by itself after.
+                player.busy = false
+            }
+        }
+    }
+
+    Timer {
+        // Where listening was every few minutes, to find the place again
+        // where one fell asleep.
+        interval: 5 * 60 * 1000
+        repeat: true
+        running: player.playing
+        onTriggered: page.record("mark")
     }
 
     Rectangle {
@@ -714,13 +809,17 @@ WebViewPage {
                 onClicked: {
                     savePosition()
                     closed = true
+                    stopKind = "close"
                     stopPlayer()
                     pageStack.pop()
                 }
             }
             MenuItem {
-                //: Opens the search in the book
-                text: qsTr("Find")
+                text: hasAudio
+                      //: Opens the search in the book and its listening history
+                      ? qsTr("Find & history")
+                      //: Opens the search in the book
+                      : qsTr("Find")
                 onClicked: openFind()
             }
             MenuItem {
@@ -839,6 +938,30 @@ WebViewPage {
                     color: parent.highlighted ? palette.highlightColor : palette.primaryColor
                     //: Playback speed on the button that opens the settings, e.g. "1.25×"
                     text: qsTr("%1×").arg(Number(app.playbackRate).toLocaleString(Qt.locale(), "f", 2))
+                }
+            }
+            BackgroundItem {
+                width: Theme.itemSizeMedium
+                height: Theme.itemSizeSmall
+                anchors.verticalCenter: parent.verticalCenter
+                onClicked: openSleepTimer()
+
+                Image {
+                    anchors.centerIn: parent
+                    visible: sleepTimer.mode === "off"
+                    source: "image://theme/icon-m-timer?" + (parent.highlighted ? palette.highlightColor
+                                                                                : palette.primaryColor)
+                }
+                Label {
+                    anchors.centerIn: parent
+                    visible: sleepTimer.mode !== "off"
+                    color: parent.highlighted ? palette.highlightColor : palette.primaryColor
+                    font.pixelSize: Theme.fontSizeSmall
+                    text: sleepTimer.mode === "chapter"
+                          //: Sleep timer button while it waits for the end of the chapter
+                          ? qsTr("Chapter")
+                          //: Sleep timer button with the minutes left, e.g. "23 min"
+                          : qsTr("%1 min").arg(Math.ceil(sleepTimer.remaining / 60000))
                 }
             }
         }

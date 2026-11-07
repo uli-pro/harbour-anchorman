@@ -12,10 +12,11 @@ import hashlib
 import math
 import os
 import threading
+import time
 import traceback
 import unicodedata
 
-from . import cache, library, positions
+from . import cache, history as listening, library, positions
 from .errors import EpubError
 from .overlay import read_overlay
 from .package import read_package, text_length
@@ -351,7 +352,7 @@ _closed = set()
 def prepare_search(root):
     """Read the book's text in a thread, so the first search is quick."""
     _closed.discard(root)
-    _searcher.submit("prepare", root, None, None, 0)
+    _searcher.submit("prepare", root, 0)
 
 
 def search(root, query, here, serial):
@@ -359,7 +360,29 @@ def search(root, query, here, serial):
     ("search", serial, result), see search.BookIndex.search. here is the
     reading position, as stored. Only the latest request waiting is run."""
     _closed.discard(root)
-    _searcher.submit("search", root, query, here, serial)
+    _searcher.submit("search", root, serial, query, here)
+
+
+def add_history(path, key, kind, place):
+    """Note in the listening history that kind happened at place {spine, id}
+    of the book key now; see history.add."""
+    try:
+        listening.add(path, key, kind, place, int(time.time()))
+    except ValueError as e:
+        return _error("invalid", str(e))
+    except OSError as e:
+        return _error("io", str(e))
+    return True
+
+
+def history(root, path, key, serial):
+    """The listening sessions of the book key at root, read in a thread like
+    the search; the result comes as the event ("history", serial, result):
+    {sessions: [{start, end, entries}]}, newest first (see
+    history.sessions). Each entry is {time, kind} and its place as
+    BookIndex.sentence gives it."""
+    _closed.discard(root)
+    _searcher.submit("history", root, serial, path, key)
 
 
 def drop_search(root):
@@ -380,12 +403,15 @@ def _book_index(root):
     return index[1]
 
 
-def _search(key, root, query, here, serial):
+def _search(key, root, serial, *args):
     try:
         index = _book_index(root)
         if key == "prepare":
             return
-        result = index.search(query, here)
+        if key == "history":
+            result = _history(index, *args)
+        else:
+            result = index.search(*args)
     except EpubError as e:
         result = _error(e.code, e.detail)
     except OSError as e:
@@ -394,7 +420,19 @@ def _search(key, root, query, here, serial):
         # The search page waits for an answer.
         traceback.print_exc()
         result = _error("internal", repr(e))
-    _send("search", serial, result)
+    _send("history" if key == "history" else "search", serial, result)
+
+
+def _history(index, path, key):
+    sessions = listening.sessions(listening.load(path, key))
+    for session in sessions:
+        places = []
+        for entry in session["entries"]:
+            place = index.sentence(entry["spine"], entry["id"])
+            place.update(time=entry["time"], kind=entry["kind"])
+            places.append(place)
+        session["entries"] = places
+    return {"sessions": sessions}
 
 
 def _error(code, detail):

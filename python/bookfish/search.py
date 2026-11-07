@@ -27,6 +27,8 @@ LIMIT = 200
 # Characters of context shown before the first match, and in all.
 _BEFORE = 50
 _SNIPPET = 180
+# Characters of a sentence shown in the listening history.
+_LINE = 100
 
 
 # Distinct characters kept folded; a book using every code point must not
@@ -76,13 +78,14 @@ def _folded_with_places(text):
 
 class Chapter(object):
     """The text of one chapter: text, paragraphs as (start, end) in text,
-    and where each element id starts."""
+    and where the text of each element id starts and ends."""
 
-    def __init__(self, text="", paragraphs=(), ids=None):
+    def __init__(self, text="", paragraphs=(), ids=None, ends=None):
         self.text = text
         self.paragraphs = list(paragraphs)
         self.folded = [fold(text[a:b]) for a, b in self.paragraphs]
         self.ids = ids or {}
+        self.ends = ends or {}
         # Characters beyond the BMP count twice in UTF-16.
         self._astral = [m.start() for m in _ASTRAL.finditer(text)]
 
@@ -110,6 +113,10 @@ def chapter_of(body):
     pieces = []
     bounds = [0]
     ids = {}
+    ends = {}
+    # The element that gave each id its start; a later one with the same id,
+    # even nested inside it, must not end it.
+    owners = {}
     pos = 0
     # Each entry: element, and whether its children are done.
     stack = [(body, False)]
@@ -119,6 +126,9 @@ def chapter_of(body):
         if done:
             if block:
                 bounds.append(pos)
+            ident = element.get("id")
+            if ident and owners.get(ident) is element:
+                ends[ident] = pos
             if element is not body and element.tail:
                 pieces.append(element.tail)
                 pos += len(element.tail)
@@ -128,6 +138,7 @@ def chapter_of(body):
         ident = element.get("id")
         if ident and ident not in ids:
             ids[ident] = pos
+            owners[ident] = element
         if element.text:
             pieces.append(element.text)
             pos += len(element.text)
@@ -137,7 +148,7 @@ def chapter_of(body):
     text = "".join(pieces)
     bounds = sorted(set(bounds + [pos]))
     paragraphs = [(a, b) for a, b in zip(bounds, bounds[1:]) if text[a:b].strip()]
-    return Chapter(text, paragraphs, ids)
+    return Chapter(text, paragraphs, ids, ends)
 
 
 def _local_name(tag):
@@ -178,6 +189,25 @@ class BookIndex(object):
         or ""."""
         i = bisect.bisect_right(self._marks, (spine, offset)) - 1
         return self._titles[i] if i >= 0 else ""
+
+    def sentence(self, spine, ident):
+        """The element ident of chapter spine as a place to go to, like a
+        hit: {spine, chapter, offset, length, text, line}, line being the
+        start of its text to show. offset is -1 if there is no such element
+        or it holds no text (the book changed since)."""
+        chapter = self.chapters[spine] if 0 <= spine < len(self.chapters) else Chapter()
+        start = chapter.ids.get(ident, -1)
+        end = chapter.ends.get(ident, start)
+        if start < 0 or end <= start:
+            return {"spine": spine, "chapter": self.title_at(spine, 0),
+                    "offset": -1, "length": 0, "text": "", "line": ""}
+        text = chapter.text[start:end]
+        return {"spine": spine,
+                "chapter": self.title_at(spine, start),
+                "offset": chapter.utf16(start),
+                "length": chapter.utf16(end) - chapter.utf16(start),
+                "text": text,
+                "line": _line(text)}
 
     def place(self, here):
         """here {spine, id, fraction} as (spine, offset in text), or None."""
@@ -260,6 +290,15 @@ class BookIndex(object):
                 "length": chapter.utf16(start + b) - chapter.utf16(start + a),
                 "text": paragraph[a:b],
                 "snippet": _snippet(paragraph, matches)}
+
+
+def _line(text):
+    """text on one line, cut after a word if longer than _LINE."""
+    text = _SPACES.sub(" ", text).strip()
+    if len(text) <= _LINE:
+        return text
+    cut = text.rfind(" ", 0, _LINE + 1)
+    return text[:cut if cut > 0 else _LINE].rstrip() + "…"
 
 
 def _merged(ranges):
