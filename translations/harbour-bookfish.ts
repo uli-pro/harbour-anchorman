@@ -2,6 +2,74 @@
 <!DOCTYPE TS>
 <TS version="2.1">
 <context>
+    <name>AudiobookPage</name>
+    <message>
+        <location filename="../qml/pages/AudiobookPage.qml" line="58"/>
+        <source>Chapter %1</source>
+        <extracomment>Chapter of an audiobook without a title, e.g. &quot;Chapter 12&quot;</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/AudiobookPage.qml" line="101"/>
+        <location filename="../qml/pages/AudiobookPage.qml" line="707"/>
+        <source>%1 min</source>
+        <extracomment>Time left in an audiobook, e.g. &quot;48 min&quot;
+----------
+Sleep timer button with the minutes left, e.g. &quot;23 min&quot;</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/AudiobookPage.qml" line="103"/>
+        <source>%1 h %2 min</source>
+        <extracomment>Time left in an audiobook, e.g. &quot;15 h 48 min&quot;</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/AudiobookPage.qml" line="417"/>
+        <source>The audiobook could not be played.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/AudiobookPage.qml" line="486"/>
+        <source>Settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/AudiobookPage.qml" line="490"/>
+        <source>Library</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/AudiobookPage.qml" line="501"/>
+        <source>History</source>
+        <extracomment>Opens the listening history of an audiobook</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/AudiobookPage.qml" line="505"/>
+        <source>Contents</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/AudiobookPage.qml" line="634"/>
+        <source>Book %1 % · %2 left</source>
+        <extracomment>Progress in an audiobook, e.g. &quot;Book 31 % · 15 h 48 min left&quot; (time at the speed set)</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/AudiobookPage.qml" line="684"/>
+        <source>%1×</source>
+        <extracomment>Playback speed on the button that opens the settings, e.g. &quot;1.25×&quot;</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/AudiobookPage.qml" line="705"/>
+        <source>Chapter</source>
+        <extracomment>Sleep timer button while it waits for the end of the chapter</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>AuthorPage</name>
     <message>
         <location filename="../qml/pages/AuthorPage.qml" line="23"/>
@@ -59,169 +127,181 @@
 <context>
     <name>FindPage</name>
     <message>
-        <location filename="../qml/pages/FindPage.qml" line="262"/>
+        <location filename="../qml/pages/FindPage.qml" line="295"/>
         <source>All words, in any order</source>
         <extracomment>Below the heading of the search</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/FindPage.qml" line="270"/>
+        <location filename="../qml/pages/FindPage.qml" line="304"/>
         <source>Words in the book</source>
         <extracomment>Placeholder of the search field</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/FindPage.qml" line="302"/>
+        <location filename="../qml/pages/FindPage.qml" line="336"/>
         <source>History</source>
         <extracomment>Heading of the history of reading and listening on the search page</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/FindPage.qml" line="318"/>
+        <location filename="../qml/pages/FindPage.qml" line="355"/>
         <source>Newest first – tap to go there</source>
         <extracomment>Below the heading of the history</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/FindPage.qml" line="339"/>
+        <location filename="../qml/pages/FindPage.qml" line="376"/>
         <source>Last heard</source>
         <extracomment>Line in the search hits: hits below it have not been heard yet</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/FindPage.qml" line="341"/>
+        <location filename="../qml/pages/FindPage.qml" line="378"/>
         <source>Current page</source>
         <extracomment>Line in the search hits: hits below it come after the page shown</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/FindPage.qml" line="34"/>
+        <location filename="../qml/pages/FindPage.qml" line="37"/>
         <source>Chapter %1</source>
         <extracomment>Chapter of a search hit without a title, e.g. &quot;Chapter 12&quot;</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/FindPage.qml" line="90"/>
+        <location filename="../qml/pages/FindPage.qml" line="109"/>
         <source>Today</source>
         <extracomment>Heading of a session of reading or listening today, before its times</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/FindPage.qml" line="93"/>
+        <location filename="../qml/pages/FindPage.qml" line="112"/>
         <source>Yesterday</source>
         <extracomment>Heading of a session of reading or listening yesterday, before its times</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/FindPage.qml" line="100"/>
+        <location filename="../qml/pages/FindPage.qml" line="119"/>
         <source>Reading · %1, %2</source>
         <extracomment>Heading of a reading session: day and times, e.g. &quot;Reading · Today, 22:40–23:15&quot;</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/FindPage.qml" line="102"/>
+        <location filename="../qml/pages/FindPage.qml" line="121"/>
         <source>Listening · %1, %2</source>
         <extracomment>Heading of a listening session: day and times, e.g. &quot;Listening · Today, 22:40–23:15&quot;</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/FindPage.qml" line="109"/>
+        <location filename="../qml/pages/FindPage.qml" line="128"/>
         <source>Started</source>
         <extracomment>Listening history: listening began here</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/FindPage.qml" line="112"/>
+        <location filename="../qml/pages/FindPage.qml" line="131"/>
         <source>Listening</source>
         <extracomment>Listening history: noted every few minutes while listening</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/FindPage.qml" line="115"/>
+        <location filename="../qml/pages/FindPage.qml" line="134"/>
         <source>Paused</source>
         <extracomment>Listening history: paused here</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/FindPage.qml" line="118"/>
+        <location filename="../qml/pages/FindPage.qml" line="137"/>
         <source>Interrupted</source>
         <extracomment>Listening history: stopped by the phone (headphones gone, a call, an error)</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/FindPage.qml" line="121"/>
+        <location filename="../qml/pages/FindPage.qml" line="140"/>
         <source>Sleep timer</source>
         <extracomment>Listening history: the sleep timer ended listening here</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/FindPage.qml" line="124"/>
+        <location filename="../qml/pages/FindPage.qml" line="143"/>
         <source>Book closed</source>
         <extracomment>History: the book was closed while reading or listening</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/FindPage.qml" line="127"/>
+        <location filename="../qml/pages/FindPage.qml" line="146"/>
         <source>Started reading</source>
         <extracomment>History: reading began here (the page the book was opened at, or came back to)</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/FindPage.qml" line="130"/>
+        <location filename="../qml/pages/FindPage.qml" line="149"/>
         <source>Reading</source>
         <extracomment>History: noted every few minutes while reading</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/FindPage.qml" line="133"/>
+        <location filename="../qml/pages/FindPage.qml" line="152"/>
         <source>Jumped away</source>
         <extracomment>History: left this page for the contents, a search hit or the history</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/FindPage.qml" line="136"/>
+        <location filename="../qml/pages/FindPage.qml" line="155"/>
         <source>Left the app</source>
         <extracomment>History: left the app while reading here</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/FindPage.qml" line="139"/>
+        <location filename="../qml/pages/FindPage.qml" line="158"/>
         <source>End of book</source>
         <extracomment>Listening history: the narration reached the end of the book</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/FindPage.qml" line="251"/>
+        <location filename="../qml/pages/FindPage.qml" line="284"/>
         <source>Find in this book</source>
         <extracomment>Heading of the search on the page with search and history</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/FindPage.qml" line="306"/>
+        <location filename="../qml/pages/FindPage.qml" line="340"/>
         <source>1 hit</source>
         <extracomment>Heading of the search hits, one hit</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/FindPage.qml" line="308"/>
+        <location filename="../qml/pages/FindPage.qml" line="342"/>
         <source>%1 hits</source>
         <extracomment>Heading of the search hits, e.g. &quot;39 hits&quot;</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/FindPage.qml" line="402"/>
+        <location filename="../qml/pages/FindPage.qml" line="353"/>
+        <source>Newest first – tap to listen there</source>
+        <extracomment>Below the heading of an audiobook&apos;s history</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/FindPage.qml" line="439"/>
         <source>%1 of %2 hits. Add a word to narrow them down.</source>
         <extracomment>Shown below a cut-off list of search hits, e.g. &quot;200 of 1534 hits. Add a word to narrow them down.&quot;</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/FindPage.qml" line="410"/>
+        <location filename="../qml/pages/FindPage.qml" line="447"/>
+        <source>No history yet</source>
+        <extracomment>An audiobook not listened to yet</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/FindPage.qml" line="450"/>
         <source>Type words from the book</source>
         <extracomment>Hint on the empty search page</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/FindPage.qml" line="412"/>
+        <location filename="../qml/pages/FindPage.qml" line="452"/>
         <source>Nothing found</source>
         <extracomment>The search found nothing</extracomment>
         <translation type="unfinished"></translation>
@@ -230,78 +310,72 @@
 <context>
     <name>LibraryPage</name>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="141"/>
-        <source>Audiobooks can be played in a later version.</source>
-        <extracomment>Shown when an audiobook is opened before the player exists</extracomment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="199"/>
-        <location filename="../qml/pages/LibraryPage.qml" line="341"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="225"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="367"/>
         <source>Book folder</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="207"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="233"/>
         <source>All folders</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="211"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="237"/>
         <source>Refresh</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="220"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="246"/>
         <source>Library</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="222"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="248"/>
         <source>Documents and memory cards</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="228"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="254"/>
         <source>Author, title or series</source>
         <extracomment>Search field of the library</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="241"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="267"/>
         <source>Continue</source>
         <extracomment>Books and audiobooks opened last</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="258"/>
-        <location filename="../qml/pages/LibraryPage.qml" line="278"/>
-        <location filename="../qml/pages/LibraryPage.qml" line="305"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="284"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="304"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="331"/>
         <source>Unknown author</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="312"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="338"/>
         <source>Nothing found</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="312"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="338"/>
         <source>No books</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="314"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="340"/>
         <source>Copy EPUB books or audiobooks (MP3, M4B) to Documents or a memory card, or choose another book folder in the pulley menu</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="334"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="360"/>
         <source>Searching for books</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="329"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="355"/>
         <source>Opening book</source>
         <translation type="unfinished"></translation>
     </message>
@@ -309,64 +383,70 @@
 <context>
     <name>ReaderPage</name>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="825"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="847"/>
         <source>The narration could not be played.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="897"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="919"/>
         <source>Chapter %1/%2</source>
         <extracomment>Chapter in the book, e.g. &quot;Chapter 3/12&quot;</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="913"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="935"/>
         <source>Page %1/%2</source>
         <extracomment>Estimated page in the whole book, e.g. &quot;Page 30/295&quot;</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="937"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="959"/>
         <source>Settings</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="953"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="975"/>
         <source>Find &amp; history</source>
         <extracomment>Opens the search in the book and its history of reading and listening</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="1075"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="1097"/>
         <source>%1×</source>
         <extracomment>Playback speed on the button that opens the settings, e.g. &quot;1.25×&quot;</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="1097"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="1119"/>
         <source>Chapter</source>
         <extracomment>Sleep timer button while it waits for the end of the chapter</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="1099"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="1121"/>
         <source>%1 min</source>
         <extracomment>Sleep timer button with the minutes left, e.g. &quot;23 min&quot;</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="1137"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="1159"/>
         <source>%1 / %2</source>
         <extracomment>Search hit shown and number of hits, e.g. &quot;3 / 39&quot;</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="941"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="963"/>
         <source>Library</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="957"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="680"/>
+        <source>Chapter %1</source>
+        <extracomment>Chapter without a title in the contents, e.g. &quot;Chapter 12&quot;</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/ReaderPage.qml" line="979"/>
         <source>Contents</source>
         <translation type="unfinished"></translation>
     </message>
@@ -500,12 +580,12 @@
 <context>
     <name>TocPage</name>
     <message>
-        <location filename="../qml/pages/TocPage.qml" line="19"/>
+        <location filename="../qml/pages/TocPage.qml" line="40"/>
         <source>Contents</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/TocPage.qml" line="48"/>
+        <location filename="../qml/pages/TocPage.qml" line="84"/>
         <source>No table of contents</source>
         <translation type="unfinished"></translation>
     </message>
@@ -513,42 +593,47 @@
 <context>
     <name>harbour-bookfish</name>
     <message>
-        <location filename="../qml/harbour-bookfish.qml" line="108"/>
+        <location filename="../qml/harbour-bookfish.qml" line="111"/>
         <source>This file is not an EPUB book.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-bookfish.qml" line="111"/>
+        <location filename="../qml/harbour-bookfish.qml" line="114"/>
         <source>This book is too large or damaged.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-bookfish.qml" line="113"/>
+        <location filename="../qml/harbour-bookfish.qml" line="116"/>
         <source>Not enough free space to open this book.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-bookfish.qml" line="115"/>
+        <location filename="../qml/harbour-bookfish.qml" line="118"/>
         <source>This book contains unsafe file names and was not opened.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-bookfish.qml" line="117"/>
+        <location filename="../qml/harbour-bookfish.qml" line="120"/>
         <source>This book is protected by DRM and cannot be opened.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-bookfish.qml" line="119"/>
+        <location filename="../qml/harbour-bookfish.qml" line="122"/>
         <source>The book could not be read.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-bookfish.qml" line="121"/>
+        <location filename="../qml/harbour-bookfish.qml" line="124"/>
+        <source>This audiobook cannot be played.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/harbour-bookfish.qml" line="126"/>
         <source>This book is damaged.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-bookfish.qml" line="204"/>
+        <location filename="../qml/harbour-bookfish.qml" line="205"/>
         <source>Internal error. Please report it with the log.</source>
         <translation type="unfinished"></translation>
     </message>

@@ -164,3 +164,34 @@ class RecentTest(TempDirTestCase):
         with open(self.path, "w") as f:
             json.dump({"books": {}, "last": self.epubs[0], "recent": [5, self.epubs[1]]}, f)
         self.assertEqual(positions.load_recent(self.path), [self.epubs[1]])
+
+
+class AudioPositionTest(TempDirTestCase):
+
+    def setUp(self):
+        super().setUp()
+        self.path = os.path.join(self.tmp, "positions.json")
+
+    def test_save_and_load(self):
+        positions.save(self.path, "audio:book", {"file": "book-002.mp3", "ms": 61000.0,
+                                                 "spine": 7})
+        self.assertEqual(positions.load(self.path, "audio:book"),
+                         {"file": "book-002.mp3", "ms": 61000})
+
+    def test_invalid(self):
+        for position in ({"file": "", "ms": 0}, {"file": "a.mp3", "ms": -1},
+                         {"file": "a.mp3", "ms": True}, {"file": "a.mp3", "ms": float("nan")},
+                         {"file": "a.mp3", "ms": "5"}, {"file": 3, "ms": 0},
+                         {"file": "x" * 1001, "ms": 0}, {"file": "a.mp3"}):
+            with self.assertRaises(ValueError, msg=position):
+                positions.save(self.path, "audio:book", position)
+
+    def test_folder_as_last_and_recent_book(self):
+        folder = os.path.join(self.tmp, "Book")
+        os.mkdir(folder)
+        positions.save_last(self.path, folder)
+        self.assertEqual(positions.load_last(self.path), folder)
+        self.assertEqual(positions.load_recent(self.path), [folder])
+        os.rmdir(folder)
+        self.assertIsNone(positions.load_last(self.path))
+        self.assertEqual(positions.load_recent(self.path), [])

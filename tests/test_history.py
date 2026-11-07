@@ -208,3 +208,40 @@ class SessionsTest(TempDirTestCase):
         self.assertEqual([e["kind"] for e in result[0]["entries"]], ["close", "jump", "read"])
         # Before the first start, the place tells.
         self.assertEqual(history.sessions([self.entry(1, "mark")])[0]["mode"], "listening")
+
+
+class AudiobookHistoryTest(TempDirTestCase):
+
+    def setUp(self):
+        super().setUp()
+        self.path = os.path.join(self.tmp, "history.json")
+
+    def test_entries_with_time_in_file(self):
+        history.add(self.path, "audio:b", "start", {"spine": 3, "ms": 1500.7}, 1000)
+        self.assertEqual(history.load(self.path, "audio:b"),
+                         [{"time": 1000, "kind": "start", "spine": 3, "ms": 1500}])
+        self.assertEqual(history.sessions(history.load(self.path, "audio:b"))[0]["mode"],
+                         "listening")
+
+    def test_place_must_fit(self):
+        for kind, place in (("read", {"spine": 0, "ms": 0}),
+                            ("start", {"spine": 0, "ms": 0, "id": "s"}),
+                            ("start", {"spine": 0, "ms": 0, "offset": 0}),
+                            ("start", {"spine": 0, "ms": -1}),
+                            ("start", {"spine": 0, "ms": True}),
+                            ("start", {"spine": 0, "ms": float("inf")})):
+            with self.assertRaises(ValueError, msg=(kind, place)):
+                history.add(self.path, "audio:b", kind, place, 1000)
+
+    def test_short_pause_near_the_same_place_is_taken_back(self):
+        history.add(self.path, "b", "start", {"spine": 1, "ms": 0}, 1000)
+        history.add(self.path, "b", "pause", {"spine": 1, "ms": 60000}, 1060)
+        history.add(self.path, "b", "start", {"spine": 1, "ms": 60000 + history.SAME_PLACE_MS},
+                    1070)
+        self.assertEqual([e["kind"] for e in history.load(self.path, "b")], ["start"])
+        for n, place in enumerate(({"spine": 1, "ms": 60000 + history.SAME_PLACE_MS + 1},
+                                   {"spine": 2, "ms": 60000})):
+            path = os.path.join(self.tmp, "h{}.json".format(n))
+            history.add(path, "b", "pause", {"spine": 1, "ms": 60000}, 1060)
+            history.add(path, "b", "start", place, 1070)
+            self.assertEqual([e["kind"] for e in history.load(path, "b")], ["pause", "start"])

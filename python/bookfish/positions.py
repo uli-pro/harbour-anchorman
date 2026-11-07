@@ -10,8 +10,12 @@ in UTF-16 code units; -1 if not known, as when listening). The sentence id
 and offset survive changes of font size and orientation; fraction is the
 fallback for pages without either.
 
+In an audiobook a position is {file, ms}: the name of the audio file and
+the place in it.
+
 File format: {"books": {key: position}, "last": path of the EPUB file,
-"recent": paths of the EPUB files opened last, newest first}.
+"recent": paths of the books opened last, newest first}; a book's path is
+that of its EPUB or audio file, or of the folder of an audiobook.
 """
 
 import math
@@ -40,9 +44,9 @@ def save(path, key, position):
 
 
 def load_last(path):
-    """The EPUB file read last, or None if there is none or it is gone."""
+    """The book read last, or None if there is none or it is gone."""
     last = _read_all(path)["last"]
-    return last if isinstance(last, str) and os.path.isfile(last) else None
+    return last if isinstance(last, str) and _exists(last) else None
 
 
 def save_last(path, epub_path):
@@ -53,8 +57,12 @@ def save_last(path, epub_path):
 
 
 def load_recent(path):
-    """The EPUB files opened last that still exist, newest first."""
-    return [p for p in _read_all(path)["recent"] if os.path.isfile(p)]
+    """The books opened last that still exist, newest first."""
+    return [p for p in _read_all(path)["recent"] if _exists(p)]
+
+
+def _exists(path):
+    return os.path.isfile(path) or os.path.isdir(path)
 
 
 def _read_all(path):
@@ -78,6 +86,8 @@ def _valid(position):
     """A clean copy of position, or None if it is not a valid position."""
     if not isinstance(position, dict):
         return None
+    if "file" in position:
+        return _valid_audio(position)
     spine = position.get("spine")
     sentence = position.get("id")
     fraction = position.get("fraction")
@@ -98,3 +108,15 @@ def _valid(position):
         offset = -1
     return {"spine": spine, "id": sentence, "fraction": float(fraction),
             "heard": heard, "offset": offset}
+
+
+def _valid_audio(position):
+    name = position.get("file")
+    ms = position.get("ms")
+    # A number from QML may come as a float.
+    if isinstance(ms, float) and math.isfinite(ms):
+        ms = int(ms)
+    if (not isinstance(name, str) or not name or len(name) > _MAX_ID_LENGTH
+            or not isinstance(ms, int) or isinstance(ms, bool) or ms < 0):
+        return None
+    return {"file": name, "ms": ms}

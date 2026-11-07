@@ -3,9 +3,10 @@
 Kept in a file of its own beside the positions, so a damaged history never
 costs a position. An entry is a dict: time (seconds since 1970), kind (see
 LISTENING and READING), spine (index of the chapter) and the place in it:
-id (element id of the sentence heard) when listening, offset (first
-character of the page in the chapter's text, in UTF-16 code units) when
-reading. Only the place is stored; the text shown comes from the book.
+id (element id of the sentence heard) when listening to a readaloud, ms
+(place in the chapter's audio file) when listening to an audiobook, offset
+(first character of the page in the chapter's text, in UTF-16 code units)
+when reading. Only the place is stored; the text shown comes from the book.
 
 File format: {"books": {key: [entry, ...]}}, oldest entry first.
 """
@@ -24,17 +25,22 @@ READING = ("read", "page", "jump", "away", "close")
 _STARTS = {"start": "listening", "read": "reading"}
 MAX_ENTRIES = 200
 MAX_BOOKS = 20
-# A pause this short, resumed at the same sentence, does not end listening;
+# A pause this short, resumed at the same sentence (or within a few seconds
+# of an audiobook), does not end listening;
 # coming back to the app this soon and reading on in the same chapter does
 # not end reading.
 SHORT_PAUSE = 120
+# The place of a pause and of playing on may differ a little in an
+# audiobook: the position is read at different moments.
+SAME_PLACE_MS = 3000
 MAX_SIZE = 1024 * 1024
 _MAX_ID_LENGTH = 1000
 
 
 def add(path, key, kind, place, now):
     """Add an entry of kind at place for the book key: {spine, id} when
-    listening, {spine, offset} when reading.
+    listening to a readaloud, {spine, ms} to an audiobook, {spine, offset}
+    when reading.
 
     Starting again at the sentence of a short pause takes that pause back;
     reading on from where one left the app shortly before takes that back.
@@ -52,7 +58,7 @@ def add(path, key, kind, place, now):
     # Reading on needs only the same chapter: while the app was away its
     # page may have been laid out anew (a bar hidden), so it begins elsewhere.
     if (last is not None and 0 <= now - last["time"] <= SHORT_PAUSE
-            and (kind == "start" and last["kind"] == "pause" and _place(last) == _place(entry)
+            and (kind == "start" and last["kind"] == "pause" and _same_place(last, entry)
                  or kind == "read" and last["kind"] == "away" and last["spine"] == entry["spine"])):
         entries.pop()
     else:
@@ -98,8 +104,11 @@ def sessions(entries):
             for group in reversed(groups)]
 
 
-def _place(entry):
-    return entry["spine"], entry.get("id"), entry.get("offset")
+def _same_place(a, b):
+    if "ms" in a and "ms" in b:
+        return a["spine"] == b["spine"] and abs(a["ms"] - b["ms"]) <= SAME_PLACE_MS
+    return (a["spine"], a.get("id"), a.get("offset"), a.get("ms")) == (
+        b["spine"], b.get("id"), b.get("offset"), b.get("ms"))
 
 
 def _read_all(path):
@@ -130,6 +139,15 @@ def _valid(entry):
             or spine is None):
         return None
     # Exactly one kind of place, and one that fits the kind of entry.
+    if "ms" in entry:
+        ms = entry["ms"]
+        # Times from QML may come as floats.
+        if isinstance(ms, float) and math.isfinite(ms):
+            ms = int(ms)
+        if (kind not in LISTENING or "id" in entry or "offset" in entry
+                or not isinstance(ms, int) or isinstance(ms, bool) or ms < 0):
+            return None
+        return {"time": time, "kind": kind, "spine": spine, "ms": ms}
     if "offset" not in entry:
         if (kind not in LISTENING or not isinstance(sentence, str)
                 or len(sentence) > _MAX_ID_LENGTH):

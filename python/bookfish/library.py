@@ -108,8 +108,18 @@ def audio_files(folder):
     """The MP3 files of an audiobook folder in order, as list_books finds
     them."""
     names = [name for name in os.listdir(folder)
-             if os.path.splitext(name)[1].lower() == ".mp3" and not name.startswith(".")]
+             if os.path.splitext(name)[1].lower() == ".mp3" and not name.startswith(".")
+             and _utf8(name)]
     return [os.path.join(folder, name) for name in sorted(names, key=natural_key)]
+
+
+def _utf8(name):
+    # QML could not show or open other names.
+    try:
+        name.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return True
 
 
 def card_folders(media_root):

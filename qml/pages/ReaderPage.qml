@@ -1,6 +1,7 @@
 import QtQuick 2.0
 import Sailfish.Silica 1.0
 import Sailfish.WebView 1.0
+import Sailfish.WebEngine 1.0
 import "../components"
 
 WebViewPage {
@@ -80,6 +81,8 @@ WebViewPage {
     readonly property bool hasAudio: book.spine.some(function (item) { return !!item.overlay })
     // For the lock screen and headphone controls.
     readonly property string coverUrl: book.cover ? player.fileUrl(book.cover) : ""
+    // The chapter heard, or read; for the lock screen.
+    readonly property string chapterTitle: tocTitle(player.active ? player.chapter : chapter)
     property double savedAt: 0
     // Left for the library: the page is going, and must neither lay out
     // nor save again (it would save the top of the page over the sentence).
@@ -619,14 +622,15 @@ WebViewPage {
                        { timer: sleepTimer, chapterLeft: player.chapterLeft() })
     }
 
+    // Next and previous sentence, from the lock screen and the headphones.
     // Only while listening: paused and turned away, a sentence would pull
     // the page back.
-    function nextSentence() {
+    function forward() {
         if (barShown)
             player.next()
     }
 
-    function previousSentence() {
+    function back() {
         if (barShown)
             player.previous()
     }
@@ -664,6 +668,16 @@ WebViewPage {
         } else {
             player.continueWith(upcoming.chapter, upcoming.clips)
         }
+    }
+
+    // The title of the first entry of the contents in chapter index.
+    function tocTitle(index) {
+        for (var i = 0; i < book.toc.length; ++i) {
+            if (book.toc[i].spine === index)
+                return book.toc[i].title
+        }
+        //: Chapter without a title in the contents, e.g. "Chapter 12"
+        return index >= 0 ? qsTr("Chapter %1").arg(index + 1) : ""
     }
 
     function nextLinear(from, delta) {
@@ -800,7 +814,15 @@ WebViewPage {
         onTriggered: page.showPending(true)
     }
 
-    Component.onCompleted: app.reader = page
+    Component.onCompleted: {
+        // Before the view is initialised: only our frame script may run code
+        // in the book's pages; scripts that came with a book never run. Here,
+        // not at the start of the app: the web engine starts with this
+        // import, and the app then hangs on closing if no page was ever shown
+        // in it (seen on the device after listening to an audiobook).
+        WebEngineSettings.javascriptEnabled = false
+        app.reader = page
+    }
     Component.onDestruction: {
         if (app.reader === page)
             app.reader = null

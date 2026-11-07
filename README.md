@@ -20,6 +20,12 @@ Readalouds can be created from an EPUB and an audiobook with
   folder `Book/` or the file `Book.mp3` next to `Book.epub`) is listed with
   the title, author, series and cover of that book. Icons tell books,
   audiobooks and readalouds apart.
+- **Audiobooks** open a player: chapter, place in it and time left in the
+  book; back and forward by chapter or 30 seconds, also on the lock screen
+  and the headphones. Contents lists the chapters with their start times,
+  History where you listened. The place is saved to the second. A folder
+  opens at once; until its files have been read once, chapter lengths are
+  estimated from the file sizes.
 - **Turn pages** by swiping, or by tapping the left or right edge.
 - **Listen** by tapping a sentence: narration starts there. Tapping where
   there is no sentence starts at the top of the page. When a book is opened
@@ -31,8 +37,9 @@ Readalouds can be created from an EPUB and an audiobook with
   listened: where it started, every five minutes, and where it ended. When
   reading, also the page you left for the contents, a search hit or the
   history, like a back button. Tap an entry to go there.
-- **Sleep timer** (button in the playback bar): stop after 15 to 60 minutes,
-  fading out over the last 20 seconds, or at the end of the chapter.
+- **Sleep timer** (button in the playback bar or the player): stop after 15
+  to 60 minutes, fading out over the last 20 seconds, or at the end of the
+  chapter.
 - The place heard is saved whenever listening stops, also when the phone
   stops it (headphones out of reach, an alarm, a call). After an alarm or a
   call listening goes on by itself; after losing the headphones it does not.
