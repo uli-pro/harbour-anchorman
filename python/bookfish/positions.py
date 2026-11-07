@@ -3,10 +3,12 @@ book and the book read last.
 
 A position is a dict: spine (index of the chapter), id (element id of the
 first sentence starting on the page, "" if none), fraction (0 to 1, how
-far into the chapter the page is) and heard (true if id is the sentence
+far into the chapter the page is), heard (true if id is the sentence
 heard last rather than the top of the page read last; listening resumes
-there). The sentence id survives changes of font size and orientation;
-fraction is the fallback for pages without one.
+there) and offset (first character of the page read in the chapter's text,
+in UTF-16 code units; -1 if not known, as when listening). The sentence id
+and offset survive changes of font size and orientation; fraction is the
+fallback for pages without either.
 
 File format: {"books": {key: position}, "last": path of the EPUB file,
 "recent": paths of the EPUB files opened last, newest first}.
@@ -86,7 +88,13 @@ def _valid(position):
             or isinstance(fraction, bool) or not math.isfinite(fraction)
             or not 0 <= fraction <= 1):
         return None
-    # Files from before listening have no "heard".
+    # Files from before listening have no "heard", from before the reading
+    # history no "offset".
     heard = position.get("heard", False) is True
+    offset = position.get("offset", -1)
+    if isinstance(offset, float) and offset.is_integer():
+        offset = int(offset)
+    if not isinstance(offset, int) or isinstance(offset, bool) or offset < 0:
+        offset = -1
     return {"spine": spine, "id": sentence, "fraction": float(fraction),
-            "heard": heard}
+            "heard": heard, "offset": offset}

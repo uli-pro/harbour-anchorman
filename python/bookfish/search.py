@@ -27,8 +27,10 @@ LIMIT = 200
 # Characters of context shown before the first match, and in all.
 _BEFORE = 50
 _SNIPPET = 180
-# Characters of a sentence shown in the listening history.
+# Characters of a sentence or page shown in the history, and marked at most
+# when going to a page from it.
 _LINE = 100
+_MARK = 40
 
 
 # Distinct characters kept folded; a book using every code point must not
@@ -92,6 +94,16 @@ class Chapter(object):
     def utf16(self, index):
         """index in text as UTF-16 code units."""
         return index + bisect.bisect_left(self._astral, index)
+
+    def index(self, units):
+        """The index in text at units UTF-16 code units; inside a character
+        beyond the BMP, its start."""
+        index = units
+        for before, astral in enumerate(self._astral):
+            if astral + before >= units:
+                break
+            index = max(astral, units - before - 1)
+        return index
 
 
 def read_chapter(root, path):
@@ -209,8 +221,40 @@ class BookIndex(object):
                 "text": text,
                 "line": _line(text)}
 
+    def text_at(self, spine, offset):
+        """The page of chapter spine beginning offset UTF-16 code units into
+        its text as a place to go to, like sentence(): its first words to
+        mark (up to _MARK characters, not past the paragraph) and line, the
+        text from there to show. Leading whitespace is skipped. offset is -1
+        if the place is not in the chapter (the book changed since)."""
+        chapter = self.chapters[spine] if 0 <= spine < len(self.chapters) else Chapter()
+        start = chapter.index(offset) if offset >= 0 else len(chapter.text)
+        while start < len(chapter.text) and chapter.text[start].isspace():
+            start += 1
+        if start >= len(chapter.text):
+            return {"spine": spine, "chapter": self.title_at(spine, 0),
+                    "offset": -1, "length": 0, "text": "", "line": ""}
+        i = bisect.bisect_right(chapter.paragraphs, (start, len(chapter.text) + 1)) - 1
+        end = chapter.paragraphs[i][1] if i >= 0 and chapter.paragraphs[i][1] > start else len(chapter.text)
+        # Cut after a word only if the paragraph goes on: the next one may
+        # follow without a space.
+        if start + _MARK < end:
+            end = start + _MARK
+            if not chapter.text[end].isspace():
+                space = max((m.start() for m in _SPACES.finditer(chapter.text, start, end)), default=-1)
+                if space > start:
+                    end = space
+        text = chapter.text[start:end].rstrip()
+        return {"spine": spine,
+                "chapter": self.title_at(spine, start),
+                "offset": chapter.utf16(start),
+                "length": chapter.utf16(start + len(text)) - chapter.utf16(start),
+                "text": text,
+                "line": _line(chapter.text[start:start + 3 * _LINE])}
+
     def place(self, here):
-        """here {spine, id, fraction} as (spine, offset in text), or None."""
+        """here {spine, id, offset, fraction} as (spine, offset in text), or
+        None; the first of id, offset (UTF-16) and fraction that is given."""
         if not isinstance(here, dict):
             return None
         spine = here.get("spine")
@@ -225,6 +269,11 @@ class BookIndex(object):
         ident = here.get("id")
         if ident and ident in chapter.ids:
             return spine, chapter.ids[ident]
+        offset = here.get("offset")
+        if isinstance(offset, float) and offset.is_integer():
+            offset = int(offset)
+        if isinstance(offset, int) and not isinstance(offset, bool) and offset >= 0:
+            return spine, min(chapter.index(offset), len(chapter.text))
         fraction = here.get("fraction")
         fraction = fraction if isinstance(fraction, (int, float)) and 0 <= fraction <= 1 else 0
         return spine, int(fraction * len(chapter.text))

@@ -16,11 +16,13 @@ Readalouds can be created from an EPUB and an audiobook with
 - **Listen** by tapping a sentence: narration starts there. Tapping where
   there is no sentence starts at the top of the page. When a book is opened
   again, the sentence heard last is marked; tap it to go on listening.
-- **Find** (pull-down menu) searches the book for paragraphs holding all
-  words typed, in any order. A line in the hits shows where you are.
-- **History:** in a readaloud the same page, with nothing typed, lists where
-  you listened: start, every five minutes, and where it ended. Tap an entry
-  to go there.
+- **Find & history** (pull-down menu) searches the book for paragraphs
+  holding all words typed, in any order. A line in the hits shows where you
+  are.
+- **History:** the same page, with nothing typed, lists where you read and
+  listened: where it started, every five minutes, and where it ended. When
+  reading, also the page you left for the contents, a search hit or the
+  history, like a back button. Tap an entry to go there.
 - **Sleep timer** (button in the playback bar): stop after 15 to 60 minutes,
   fading out over the last 20 seconds, or at the end of the chapter.
 - The place heard is saved whenever listening stops, also when the phone
