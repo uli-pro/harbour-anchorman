@@ -76,6 +76,14 @@ class ChapterTest(TempDirTestCase):
         ch = chapter('<p id="p1">ab<span id="s1">cd</span></p><p id="p2">ef</p>')
         self.assertEqual(ch.ids, {"p1": 0, "s1": 2, "p2": 4})
 
+    def test_ids_mark_their_end(self):
+        ch = chapter('<p id="p1">ab<span id="s1">cd</span>x</p>tail<p id="p2">ef</p><br id="e"/>')
+        self.assertEqual(ch.ends, {"p1": 5, "s1": 4, "p2": 11, "e": 11})
+
+    def test_repeated_id_ends_with_the_first_element(self):
+        ch = chapter('<p id="a">ab<span id="a">cd</span>e</p><p id="a">fg</p>')
+        self.assertEqual((ch.ids["a"], ch.ends["a"]), (0, 5))
+
     def test_other_namespaces_hold_text_but_no_blocks(self):
         ch = chapter('<p>a</p><svg xmlns="http://www.w3.org/2000/svg"><text>pic</text></svg>'
                      '<math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi></math>')
@@ -223,6 +231,31 @@ class BookIndexTest(TempDirTestCase):
             {"text": " Swallow and the ", "match": False}, {"text": "little", "match": True},
             {"text": " ", "match": False}, {"text": "Prince", "match": True},
             {"text": ".", "match": False}])
+
+    def test_sentence_as_a_place_to_go_to(self):
+        index = self.book(['<p>x</p>',
+                           '<h1 id="h">Two</h1><p><span id="s1">\U0001F600 First  one.</span>'
+                           '<span id="s2">Second.</span></p>'],
+                          toc=[("Part two", "c1.xhtml#h")])
+        place = index.sentence(1, "s1")
+        self.assertEqual(place, {"spine": 1, "chapter": "Part two", "offset": 3, "length": 14,
+                                 "text": "\U0001F600 First  one.", "line": "\U0001F600 First one."})
+        self.assertEqual(index.sentence(1, "s2")["offset"], 17)
+
+    def test_sentence_line_is_cut_after_a_word(self):
+        words = " ".join("word{}".format(i) for i in range(40))
+        index = self.book(['<p id="s">' + words + '</p>'])
+        line = index.sentence(0, "s")["line"]
+        self.assertTrue(line.endswith("…"))
+        self.assertLessEqual(len(line), 101)
+        self.assertTrue(words.startswith(line[:-1]))
+        self.assertEqual(words[len(line) - 1], " ")
+
+    def test_sentence_gone(self):
+        index = self.book(['<p id="s">a</p><p id="empty"></p>'])
+        for spine, ident in ((0, "missing"), (0, "empty"), (5, "s"), (-1, "s")):
+            place = index.sentence(spine, ident)
+            self.assertEqual((place["offset"], place["text"]), (-1, ""), (spine, ident))
 
     def test_mini_readaloud(self):
         index = BookIndex(MINI_DIR)

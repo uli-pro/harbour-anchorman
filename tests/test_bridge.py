@@ -263,7 +263,7 @@ class SearchTest(TempDirTestCase):
 
     def run_search(self, key, root, query="", here=None, serial=0):
         with mock.patch.object(bridge, "_send") as send:
-            bridge._search(key, root, query, here, serial)
+            bridge._search(key, root, serial, query, here)
         return send.call_args_list
 
     def test_search_sends_result(self):
@@ -305,6 +305,58 @@ class SearchTest(TempDirTestCase):
     def test_unreadable_book(self):
         calls = self.run_search("search", self.tmp, "x", None, 1)
         self.assertEqual(calls[0][0][2]["error"], "not_epub")
+
+
+class HistoryTest(TempDirTestCase):
+
+    def setUp(self):
+        super().setUp()
+        self.addCleanup(setattr, bridge, "_index", None)
+        self.addCleanup(bridge._closed.clear)
+        epub = os.path.join(self.tmp, "book.epub")
+        make_epub(epub, mini_entries())
+        self.root = bridge.open_book(epub, os.path.join(self.tmp, "cache"))["root"]
+        self.path = os.path.join(self.tmp, "history.json")
+
+    def run_history(self, root, serial=0):
+        with mock.patch.object(bridge, "_send") as send:
+            bridge._search("history", root, serial, self.path, "book")
+        return send.call_args_list
+
+    def test_add_history(self):
+        with mock.patch("time.time", return_value=1000.7):
+            self.assertIs(bridge.add_history(self.path, "book", "start", {"spine": 1, "id": "chapter-s1"}), True)
+        with open(self.path) as f:
+            self.assertEqual(json.load(f), {"books": {"book": [
+                {"time": 1000, "kind": "start", "spine": 1, "id": "chapter-s1"}]}})
+        self.assertEqual(bridge.add_history(self.path, "book", "nap", {"spine": 1, "id": ""})["error"], "invalid")
+        self.assertEqual(bridge.add_history(self.tmp, "book", "start", {"spine": 1, "id": ""})["error"], "io")
+
+    def test_history_with_sentences_and_chapters(self):
+        with mock.patch("time.time", side_effect=[100, 200, 300]):
+            for kind, ident in (("start", "chapter-s0"), ("timer", "chapter-s2"), ("start", "gone")):
+                bridge.add_history(self.path, "book", kind, {"spine": 1, "id": ident})
+        calls = self.run_history(self.root, 4)
+        self.assertEqual(len(calls), 1)
+        event, serial, result = calls[0][0]
+        self.assertEqual((event, serial), ("history", 4))
+        sessions = result["sessions"]
+        self.assertEqual([(s["start"], s["end"]) for s in sessions], [(300, 300), (100, 200)])
+        gone = sessions[0]["entries"][0]
+        self.assertEqual((gone["kind"], gone["offset"], gone["chapter"]), ("start", -1, "Title Page"))
+        timer, start = sessions[1]["entries"]
+        self.assertEqual((timer["time"], timer["kind"], timer["spine"]), (200, "timer", 1))
+        self.assertEqual(start["chapter"], "The Happy Prince.")
+        self.assertTrue(start["line"])
+        self.assertGreater(timer["offset"], start["offset"])
+
+    def test_history_of_unreadable_book(self):
+        calls = self.run_history(self.tmp, 1)
+        self.assertEqual(calls[0][0][:2], ("history", 1))
+        self.assertEqual(calls[0][0][2]["error"], "not_epub")
+
+    def test_no_history(self):
+        self.assertEqual(self.run_history(self.root)[0][0][2], {"sessions": []})
 
 
 class WorkerTest(unittest.TestCase):

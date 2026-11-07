@@ -1,11 +1,15 @@
 import QtQuick 2.0
 import Sailfish.Silica 1.0
 
-// Search in the open book: every paragraph holding all words typed.
+// Search in the open book: every paragraph holding all words typed. With
+// nothing typed, in a readaloud, the listening history: where listening
+// started, went on and ended, newest first.
 Page {
     id: page
 
     property string root
+    property string bookKey
+    property bool hasAudio: false
     // The reader's place: {spine, id, fraction, heard}, see ReaderPage.here().
     property var here
     // The words searched last in this book, shown again.
@@ -17,28 +21,109 @@ Page {
     property var result: null
     property string resultQuery: ""
     property string searchedQuery: ""
+    // The entries of the listening history shown, in the order of the rows.
+    property var places: []
 
     // The hits and the one chosen, for going from hit to hit in the book.
     signal selected(var hits, int index, string query)
+    // An entry of the listening history chosen: {spine, offset, length, text},
+    // see bridge.history.
+    signal chosen(var place)
 
-    // Hits in reading order, with a line where the reader's place is. A
-    // ListModel, not an array: a new array resets the list's current item,
-    // which then takes the focus from the search field.
+    function chapterName(item) {
+        //: Chapter of a search hit without a title, e.g. "Chapter 12"
+        return item.chapter || qsTr("Chapter %1").arg(item.spine + 1)
+    }
+
+    // Rows are hits ("hit"), the line at the reader's place ("here"),
+    // headings of listening sessions ("session") and their entries
+    // ("entry"). A ListModel, not an array: a new array resets the list's
+    // current item, which then takes the focus from the search field.
     function fillRows() {
         rows.clear()
+        places = []
         if (!result || !result.hits)
             return
         var hits = result.hits
         for (var i = 0; i < hits.length; ++i) {
             if (i === result.before)
-                rows.append({ here: true, html: "", chapter: "", hit: -1 })
-            rows.append({ here: false, html: snippetText(hits[i].snippet), hit: i,
-                          //: Chapter of a search hit without a title, e.g. "Chapter 12"
-                          chapter: hits[i].chapter || qsTr("Chapter %1").arg(hits[i].spine + 1) })
+                rows.append(row("here", "", "", "", -1))
+            rows.append(row("hit", "", snippetText(hits[i].snippet), chapterName(hits[i]), i))
         }
         // The place after the last hit; not if hits after it were left out.
         if (hits.length > 0 && result.before === hits.length && result.total === hits.length)
-            rows.append({ here: true, html: "", chapter: "", hit: -1 })
+            rows.append(row("here", "", "", "", -1))
+    }
+
+    function fillHistory(sessions) {
+        rows.clear()
+        var list = []
+        for (var i = 0; i < sessions.length; ++i) {
+            rows.append(row("session", sessionText(sessions[i]), "", "", -1))
+            var entries = sessions[i].entries
+            for (var j = 0; j < entries.length; ++j) {
+                var entry = entries[j]
+                var info = timeText(entry.time) + " · " + kindText(entry.kind)
+                rows.append(row("entry", info, escaped(entry.line), chapterName(entry), list.length))
+                list.push(entry)
+            }
+        }
+        places = list
+    }
+
+    function row(type, info, html, chapter, hit) {
+        return { type: type, info: info, html: html, chapter: chapter, hit: hit }
+    }
+
+    function timeText(seconds) {
+        return new Date(seconds * 1000).toLocaleTimeString(Qt.locale(), Locale.ShortFormat)
+    }
+
+    // "Today, 22:40–23:15"
+    function sessionText(session) {
+        var start = new Date(session.start * 1000)
+        var day = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+        var now = new Date()
+        var today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+        var days = Math.round((today - day) / 86400000)
+        var date = days === 0
+                //: Heading of a listening session today, before its times
+                ? qsTr("Today")
+                : days === 1
+                  //: Heading of a listening session yesterday, before its times
+                  ? qsTr("Yesterday")
+                  : start.toLocaleDateString(Qt.locale(), Locale.ShortFormat)
+        var times = timeText(session.start)
+        if (timeText(session.end) !== times)
+            times += "–" + timeText(session.end)
+        //: Heading of a listening session: day and times, e.g. "Today, 22:40–23:15"
+        return qsTr("%1, %2").arg(date).arg(times)
+    }
+
+    function kindText(kind) {
+        switch (kind) {
+        case "start":
+            //: Listening history: listening began here
+            return qsTr("Started")
+        case "mark":
+            //: Listening history: noted every few minutes while listening
+            return qsTr("Listening")
+        case "pause":
+            //: Listening history: paused here
+            return qsTr("Paused")
+        case "interrupted":
+            //: Listening history: stopped by the phone (headphones gone, a call, an error)
+            return qsTr("Interrupted")
+        case "timer":
+            //: Listening history: the sleep timer ended listening here
+            return qsTr("Sleep timer")
+        case "close":
+            //: Listening history: the book was closed while listening
+            return qsTr("Book closed")
+        default:
+            //: Listening history: the narration reached the end of the book
+            return qsTr("End of book")
+        }
     }
 
     function escaped(text) {
@@ -58,9 +143,11 @@ Page {
         var text = query.trim()
         serial = ++app.searchSerial
         if (text.length < 2) {
-            searching = false
             result = null
             fillRows()
+            searching = hasAudio
+            if (hasAudio)
+                py.call("bookfish.bridge.history", [root, app.historyFile, bookKey, serial])
             return
         }
         searching = true
@@ -68,9 +155,16 @@ Page {
         py.call("bookfish.bridge.search", [root, text, here, serial])
     }
 
-    Component.onCompleted: py.call("bookfish.bridge.prepare_search", [root])
+    Component.onCompleted: {
+        py.call("bookfish.bridge.prepare_search", [root])
+        // A text set in the field does not change it when empty.
+        if (initialQuery.trim().length < 2)
+            search()
+    }
+    // The keyboard only when there is nothing else to see: it would push
+    // the history out of sight.
     onStatusChanged: {
-        if (status === PageStatus.Active && query === "")
+        if (status === PageStatus.Active && query === "" && (!hasAudio || !searching && places.length === 0))
             listView.headerItem.field.forceActiveFocus()
     }
 
@@ -88,6 +182,20 @@ Page {
                 resultQuery = searchedQuery
             }
             fillRows()
+        }
+        onHistoryFinished: {
+            if (serial !== page.serial)
+                return
+            searching = false
+            if (result.error) {
+                // The search is still there; it reports the error itself.
+                console.warn("Cannot show listening history", result.error, result.detail)
+                fillHistory([])
+            } else {
+                fillHistory(result.sessions)
+            }
+            if (places.length === 0 && query === "" && status === PageStatus.Active)
+                listView.headerItem.field.forceActiveFocus()
         }
     }
 
@@ -112,8 +220,41 @@ Page {
             width: listView.width
 
             PageHeader {
+                visible: !page.hasAudio
                 //: Title of the page for searching the book
                 title: qsTr("Find")
+            }
+
+            // With the history below, the two parts have headings instead
+            // of the page.
+            Column {
+                x: Theme.horizontalPageMargin
+                width: parent.width - 2 * x
+                visible: page.hasAudio
+
+                Item {
+                    width: 1
+                    height: Theme.paddingLarge
+                }
+
+                Label {
+                    width: parent.width
+                    color: Theme.highlightColor
+                    truncationMode: TruncationMode.Fade
+                    //: Heading of the search on the page with search and listening history
+                    text: qsTr("Find in this book")
+                }
+
+                Label {
+                    width: parent.width
+                    // Room for the hits while typing.
+                    visible: page.query.trim().length < 2
+                    truncationMode: TruncationMode.Fade
+                    font.pixelSize: Theme.fontSizeExtraSmall
+                    color: Theme.secondaryHighlightColor
+                    //: Below the heading of the search
+                    text: qsTr("All words, in any order")
+                }
             }
 
             SearchField {
@@ -130,33 +271,85 @@ Page {
                 EnterKey.iconSource: "image://theme/icon-m-enter-close"
                 EnterKey.onClicked: focus = false
             }
+
+            // Which of the two lists is shown: the history or the hits.
+            Column {
+                readonly property bool history: page.query.trim().length < 2 && page.places.length > 0
+                readonly property bool hits: page.query.trim().length >= 2 && !!page.result
+                                             && !!page.result.hits
+
+                x: Theme.horizontalPageMargin
+                width: parent.width - 2 * x
+                visible: history || hits
+
+                Item {
+                    width: 1
+                    height: Theme.paddingLarge
+                }
+
+                Label {
+                    width: parent.width
+                    color: Theme.highlightColor
+                    truncationMode: TruncationMode.Fade
+                    text: parent.history
+                          //: Heading of the listening history on the search page
+                          ? qsTr("Listening history")
+                          : !parent.hits ? ""
+                          : page.result.total === 1
+                            //: Heading of the search hits, one hit
+                            ? qsTr("1 hit")
+                            //: Heading of the search hits, e.g. "39 hits"
+                            : qsTr("%1 hits").arg(page.result.total)
+                }
+
+                Label {
+                    width: parent.width
+                    visible: parent.history
+                    truncationMode: TruncationMode.Fade
+                    font.pixelSize: Theme.fontSizeExtraSmall
+                    color: Theme.secondaryHighlightColor
+                    //: Below the heading of the listening history
+                    text: qsTr("Newest first – tap to go there")
+                }
+            }
         }
 
         delegate: ListItem {
             id: item
 
-            contentHeight: model.here ? Theme.itemSizeExtraSmall
-                                      : column.height + 2 * Theme.paddingMedium
-            enabled: !model.here
+            readonly property bool heading: model.type === "here" || model.type === "session"
 
-            // The reader's place among the hits.
+            contentHeight: heading ? Theme.itemSizeExtraSmall
+                                   : column.height + 2 * Theme.paddingMedium
+            enabled: !heading
+
+            // The reader's place among the hits, or a listening session.
             SectionHeader {
-                visible: model.here
+                visible: item.heading
                 anchors.verticalCenter: parent.verticalCenter
-                text: page.here && page.here.heard
-                      //: Line in the search hits: hits below it have not been heard yet
-                      ? qsTr("Last heard")
-                      //: Line in the search hits: hits below it come after the page shown
-                      : qsTr("Current page")
+                text: model.type === "session" ? model.info
+                      : page.here && page.here.heard
+                        //: Line in the search hits: hits below it have not been heard yet
+                        ? qsTr("Last heard")
+                        //: Line in the search hits: hits below it come after the page shown
+                        : qsTr("Current page")
             }
 
             Column {
                 id: column
 
-                visible: !model.here
+                visible: !item.heading
                 x: Theme.horizontalPageMargin
                 y: Theme.paddingMedium
                 width: parent.width - 2 * x
+
+                Label {
+                    width: parent.width
+                    visible: model.type === "entry"
+                    font.pixelSize: Theme.fontSizeExtraSmall
+                    color: item.highlighted ? Theme.highlightColor : Theme.secondaryHighlightColor
+                    text: model.info
+                }
 
                 Label {
                     width: parent.width
@@ -182,7 +375,10 @@ Page {
             onClicked: {
                 // The reader lays the chapter out for the full height.
                 Qt.inputMethod.hide()
-                page.selected(result.hits, model.hit, resultQuery)
+                if (model.type === "entry")
+                    page.chosen(page.places[model.hit])
+                else
+                    page.selected(result.hits, model.hit, resultQuery)
                 pageStack.pop()
             }
         }
@@ -192,7 +388,7 @@ Page {
             width: listView.width - 2 * x
             height: visible ? implicitHeight + 2 * Theme.paddingLarge : 0
             verticalAlignment: Text.AlignVCenter
-            visible: !!result && result.total > result.hits.length
+            visible: !!result && !!result.hits && result.total > result.hits.length
             wrapMode: Text.Wrap
             font.pixelSize: Theme.fontSizeSmall
             color: Theme.secondaryHighlightColor
@@ -208,7 +404,8 @@ Page {
                   ? qsTr("Type words from the book")
                   //: The search found nothing
                   : qsTr("Nothing found")
-            hintText: query.trim().length < 2
+            // With audio the heading of the search says how it works.
+            hintText: query.trim().length < 2 && !hasAudio
                       //: How the search works
                       ? qsTr("Finds paragraphs holding all words, in any order")
                       : ""
