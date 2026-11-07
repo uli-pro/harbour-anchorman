@@ -153,7 +153,7 @@ class BridgeTest(TempDirTestCase):
     def test_positions(self):
         path = os.path.join(self.tmp, "positions.json")
         self.assertIsNone(bridge.load_position(path, "book"))
-        position = {"spine": 1, "id": "chapter-s1", "fraction": 0.5, "heard": True}
+        position = {"spine": 1, "id": "chapter-s1", "fraction": 0.5, "heard": True, "offset": -1}
         self.assertIs(bridge.save_position(path, "book", position), True)
         self.assertEqual(bridge.load_position(path, "book"), position)
 
@@ -350,7 +350,23 @@ class HistoryTest(TempDirTestCase):
         self.assertTrue(start["line"])
         self.assertGreater(timer["offset"], start["offset"])
 
+    def test_history_with_pages_read(self):
+        with mock.patch("time.time", side_effect=[100, 200, 300]):
+            bridge.add_history(self.path, "book", "read", {"spine": 1, "offset": 0})
+            bridge.add_history(self.path, "book", "jump", {"spine": 1, "offset": 10 ** 6})
+            bridge.add_history(self.path, "book", "start", {"spine": 1, "id": "chapter-s0"})
+        sessions = self.run_history(self.root)[0][0][2]["sessions"]
+        self.assertEqual([s["mode"] for s in sessions], ["listening", "reading"])
+        gone, read = sessions[1]["entries"]
+        self.assertEqual((gone["kind"], gone["offset"]), ("jump", -1))
+        self.assertEqual((read["kind"], read["chapter"]), ("read", "The Happy Prince."))
+        self.assertGreaterEqual(read["offset"], 0)
+        self.assertTrue(read["text"] and read["line"].startswith(read["text"]))
+
     def test_history_of_unreadable_book(self):
+        # Without entries the book is not read at all.
+        self.assertEqual(self.run_history(self.tmp, 1)[0][0][2], {"sessions": []})
+        bridge.add_history(self.path, "book", "read", {"spine": 0, "offset": 0})
         calls = self.run_history(self.tmp, 1)
         self.assertEqual(calls[0][0][:2], ("history", 1))
         self.assertEqual(calls[0][0][2]["error"], "not_epub")

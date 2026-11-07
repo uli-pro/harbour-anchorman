@@ -51,8 +51,7 @@ addMessageListener("bookfish:layout", function (message) {
     var style = current() ? state.style : null
     if (style && target.keep) {
         var top = firstSentenceOn(currentPage())
-        if (top)
-            target = { id: top, fraction: target.fraction }
+        target = { id: top, offset: firstOffsetOn(currentPage()), fraction: target.fraction }
     }
     if (!style) {
         style = doc.createElement("style")
@@ -137,7 +136,9 @@ addMessageListener("bookfish:layout", function (message) {
         active: active,
         resume: resume,
         // The text found, kept to select it again (see remark).
-        found: found
+        found: found,
+        // See textNodes().
+        texts: null
     }
     go(target)
     remark()
@@ -497,19 +498,12 @@ addMessageListener("bookfish:remark", function (message) {
 // text differ, the occurrence nearest to offset is taken: the HTML parser
 // may read a page slightly differently. null if it is not in the chapter.
 function findRange(find) {
-    var body = state.doc.body
-    if (!body)
+    var texts = textNodes()
+    if (!texts)
         return null
-    var nodes = []
-    var starts = []
-    var all = ""
-    // Text and CDATA nodes, in the order textContent joins them.
-    var walker = state.doc.createTreeWalker(body, 4 | 8)
-    for (var n = walker.nextNode(); n; n = walker.nextNode()) {
-        nodes.push(n)
-        starts.push(all.length)
-        all += n.data
-    }
+    var nodes = texts.nodes
+    var starts = texts.starts
+    var all = texts.all
     var at = find.offset
     if (all.substr(at, find.length) !== find.text) {
         var after = all.indexOf(find.text, at)
@@ -530,6 +524,125 @@ function findRange(find) {
         }
     }
     return range
+}
+
+// The text nodes of the body (text and CDATA), where each starts in
+// body.textContent, and that text; null without a body. Kept until the
+// chapter is laid out again: our layout changes styles, not text.
+function textNodes() {
+    if (state.texts)
+        return state.texts
+    var body = state.doc.body
+    if (!body)
+        return null
+    var nodes = []
+    var starts = []
+    var all = ""
+    // In the order textContent joins them.
+    var walker = state.doc.createTreeWalker(body, 4 | 8)
+    for (var n = walker.nextNode(); n; n = walker.nextNode()) {
+        nodes.push(n)
+        starts.push(all.length)
+        all += n.data
+    }
+    state.texts = { nodes: nodes, starts: starts, all: all }
+    return state.texts
+}
+
+// The boxes of characters from to to of a text node, or of all of it.
+function textBoxes(node, from, to) {
+    var range = state.doc.createRange()
+    if (from === undefined)
+        range.selectNodeContents(node)
+    else {
+        range.setStart(node, from)
+        range.setEnd(node, to)
+    }
+    return Array.prototype.filter.call(range.getClientRects(), function (r) {
+        return r.width >= 1 && r.height >= 1
+    })
+}
+
+// The first index from lo up to hi (exclusive) for which pageAt gives a
+// page; pageAt returns -1 where nothing is shown (collapsed spaces, hidden
+// text). Pages grow along the text, so the first one at or after page is
+// found by halving; the -1 between are stepped over. hi if there is none.
+function firstAtOrAfter(page, lo, hi, pageAt) {
+    var found = hi
+    while (lo < hi) {
+        var mid = (lo + hi) >> 1
+        var probe = mid
+        var p = -1
+        while (probe < hi && (p = pageAt(probe)) < 0)
+            ++probe
+        if (probe < hi && p < page) {
+            lo = probe + 1
+        } else {
+            // Nothing shown from mid to hi, or the first shown is on or
+            // after the page: an earlier one can only lie before mid.
+            if (probe < hi)
+                found = probe
+            hi = mid
+        }
+    }
+    return found
+}
+
+// Where the page begins in body.textContent, in UTF-16 code units: its
+// first character shown, or the first one after it if the page holds no
+// text (a picture): { offset, onPage }; offset -1 if no text follows.
+// Searched by halving, first over the text nodes, then over the characters
+// of one: some 30 boxes asked for instead of one per node.
+function firstTextOn(page) {
+    var none = { offset: -1, onPage: false }
+    var texts = textNodes()
+    if (!texts)
+        return none
+    var nodes = texts.nodes
+    // The first node shown that ends on the page or after it.
+    var i = firstAtOrAfter(page, 0, nodes.length, function (k) {
+        var rects = textBoxes(nodes[k])
+        return rects.length ? pageOfBox(rects[rects.length - 1]) : -1
+    })
+    if (i === nodes.length)
+        return none
+    var node = nodes[i]
+    var c = firstAtOrAfter(page, 0, node.length, function (k) {
+        var rects = textBoxes(node, k, k + 1)
+        return rects.length ? pageOfBox(rects[rects.length - 1]) : -1
+    })
+    if (c === node.length)
+        return none
+    var rects = textBoxes(node, c, c + 1)
+    return { offset: texts.starts[i] + c, onPage: pageOfBox(rects[0]) <= page }
+}
+
+// The offset of the first character on the page, -1 if it holds no text.
+function firstOffsetOn(page) {
+    var text = firstTextOn(page)
+    return text.onPage ? text.offset : -1
+}
+
+// The page showing the character at offset in body.textContent; -1 if it
+// is not shown.
+function pageOfOffset(offset) {
+    var texts = textNodes()
+    if (!texts || offset < 0 || offset >= texts.all.length)
+        return -1
+    // The last node starting at or before offset.
+    var lo = 0
+    var hi = texts.starts.length
+    while (hi - lo > 1) {
+        var mid = (lo + hi) >> 1
+        if (texts.starts[mid] <= offset)
+            lo = mid
+        else
+            hi = mid
+    }
+    var node = texts.nodes[lo]
+    var at = offset - texts.starts[lo]
+    var rects = textBoxes(node, at, Math.min(at + 1, node.length))
+    return rects.length ? pageOfBox(rects[0]) : -1
 }
 
 // The sentence holding the found place, else the next one after it; "".
@@ -572,16 +685,20 @@ function goFound(find) {
     sendAsyncMessage("bookfish:found", { serial: state.serial, id: id })
 }
 
-// target: { id, fraction } (either may be missing), { end: true } or
-// { find } (see findRange); keep is only read by the layout.
+// target: { id, offset, fraction } (any may be missing; the first one
+// found counts), { end: true } or { find } (see findRange); keep is only
+// read by the layout.
 function go(target) {
     if (target.find) {
         goFound(target.find)
         return
     }
     var el = target.id ? state.doc.getElementById(target.id) : null
+    var page = el || !(target.offset >= 0) ? -1 : pageOfOffset(target.offset)
     if (el)
         showPage(pageOf(el))
+    else if (page >= 0)
+        showPage(page)
     else if (target.end)
         showPage(pageCount() - 1)
     else
@@ -593,11 +710,14 @@ function showPage(page) {
     state.scroller.scrollLeft = Math.max(0, Math.min(pages - 1, page)) * state.width
     // Report where the view really is, should the scroll be clamped.
     page = currentPage()
+    var text = firstTextOn(page)
     sendAsyncMessage("bookfish:page", {
         serial: state.serial,
         page: page,
         pages: pages,
         firstId: firstSentenceStartingOn(page),
+        offset: text.offset,
+        offsetOnPage: text.onPage,
         fraction: pages > 1 ? page / (pages - 1) : 0,
         textScale: state.textScale
     })

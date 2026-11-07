@@ -8,6 +8,8 @@ from .helpers import TempDirTestCase
 
 HERE = {"spine": 2, "id": "s7"}
 THERE = {"spine": 2, "id": "s8"}
+PAGE = {"spine": 2, "offset": 120}
+NEXT_PAGE = {"spine": 2, "offset": 900}
 
 
 class HistoryTest(TempDirTestCase):
@@ -107,6 +109,53 @@ class HistoryTest(TempDirTestCase):
                 history.add(self.path, "book", kind, place, now)
         self.assertFalse(os.path.exists(self.path))
 
+    def test_reading_entries(self):
+        for n, kind in enumerate(history.READING):
+            history.add(self.path, "book", kind, PAGE, n)
+        history.add(self.path, "book", "close", HERE, 9)
+        entries = history.load(self.path, "book")
+        self.assertEqual(entries[0], {"time": 0, "kind": "read", "spine": 2, "offset": 120})
+        self.assertEqual([e["kind"] for e in entries], list(history.READING) + ["close"])
+        self.assertEqual(entries[-1], {"time": 9, "kind": "close", "spine": 2, "id": "s7"})
+
+    def test_place_must_fit_the_kind(self):
+        bad = [("read", HERE), ("away", HERE), ("start", PAGE), ("mark", PAGE),
+               ("read", {"spine": 1, "offset": -1}), ("read", {"spine": 1, "offset": True}),
+               ("read", {"spine": 1, "offset": "7"}), ("read", {"spine": 1, "offset": 1.5}),
+               ("read", {"spine": 1, "offset": None}), ("close", {"spine": 1, "id": "a", "offset": 3}),
+               ("read", {"offset": 3})]
+        for kind, place in bad:
+            with self.assertRaises(ValueError, msg=(kind, place)):
+                history.add(self.path, "book", kind, place, 1)
+        self.assertFalse(os.path.exists(self.path))
+
+    def test_offset_from_qml_may_be_float(self):
+        history.add(self.path, "book", "read", {"spine": 1.0, "offset": 7.0}, 1)
+        self.assertEqual(history.load(self.path, "book")[0]["offset"], 7)
+
+    def test_short_time_away_is_taken_back(self):
+        history.add(self.path, "book", "read", PAGE, 1000)
+        history.add(self.path, "book", "away", NEXT_PAGE, 2000)
+        history.add(self.path, "book", "read", NEXT_PAGE, 2000 + history.SHORT_PAUSE)
+        self.assertEqual(self.kinds(), ["read"])
+        # Laid out anew meanwhile, the page begins elsewhere in the chapter.
+        history.add(self.path, "book", "away", NEXT_PAGE, 3000)
+        history.add(self.path, "book", "read", PAGE, 3010)
+        self.assertEqual(self.kinds(), ["read"])
+
+    def test_away_stays_if_long_elsewhere_or_not_reading_on(self):
+        cases = [("away", "read", NEXT_PAGE, 2000 + history.SHORT_PAUSE + 1),
+                 ("away", "read", {"spine": 3, "offset": 900}, 2010),
+                 ("away", "start", THERE, 2010),
+                 ("close", "read", NEXT_PAGE, 2010),
+                 ("pause", "read", NEXT_PAGE, 2010)]
+        for n, (end, again, place, when) in enumerate(cases):
+            self.path = os.path.join(self.tmp, "history{}.json".format(n))
+            history.add(self.path, "book", "read", PAGE, 1000)
+            history.add(self.path, "book", end, NEXT_PAGE if end != "pause" else THERE, 2000)
+            history.add(self.path, "book", again, place, when)
+            self.assertEqual(self.kinds(), ["read", end, again], (end, again))
+
     def test_spine_from_qml_may_be_float(self):
         history.add(self.path, "book", "start", {"spine": 3.0, "id": ""}, 1)
         self.assertEqual(history.load(self.path, "book")[0]["spine"], 3)
@@ -146,3 +195,16 @@ class SessionsTest(TempDirTestCase):
 
     def test_no_entries(self):
         self.assertEqual(history.sessions([]), [])
+
+    def test_reading_and_listening(self):
+        page = {"spine": 0, "offset": 5}
+        entries = [dict(page, time=1, kind="page"), dict(page, time=2, kind="away"),
+                   self.entry(10, "start"), self.entry(11, "pause"),
+                   dict(page, time=20, kind="read"), dict(page, time=21, kind="jump"),
+                   dict(page, time=22, kind="close")]
+        result = history.sessions(entries)
+        self.assertEqual([(s["mode"], s["start"], s["end"]) for s in result],
+                         [("reading", 20, 22), ("listening", 10, 11), ("reading", 1, 2)])
+        self.assertEqual([e["kind"] for e in result[0]["entries"]], ["close", "jump", "read"])
+        # Before the first start, the place tells.
+        self.assertEqual(history.sessions([self.entry(1, "mark")])[0]["mode"], "listening")

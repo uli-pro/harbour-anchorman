@@ -118,6 +118,14 @@ class ChapterTest(TempDirTestCase):
         self.assertEqual([ch.utf16(i) for i in range(6)], [0, 1, 3, 4, 6, 7])
         self.assertEqual(chapter("<p>äx</p>").utf16(1), 1)
 
+    def test_index_from_utf16(self):
+        ch = chapter("<p>a\U0001F600b\U0001F601c</p>")
+        # Inside a character beyond the BMP: its start.
+        self.assertEqual([ch.index(u) for u in range(8)], [0, 1, 1, 2, 3, 3, 4, 5])
+        for i in range(6):
+            self.assertEqual(ch.index(ch.utf16(i)), i)
+        self.assertEqual(chapter("<p>abc</p>").index(2), 2)
+
 
 class BookIndexTest(TempDirTestCase):
 
@@ -189,6 +197,9 @@ class BookIndexTest(TempDirTestCase):
         # Without the id, the fraction of the chapter counts.
         self.assertEqual(index.search("word", {"spine": 0, "id": "", "fraction": 1.0})["before"], 3)
         self.assertEqual(index.search("word", {"spine": 1, "id": "", "fraction": 0.0})["before"], 3)
+        # The page read, by its first character, before the fraction.
+        self.assertEqual(index.search("word", {"spine": 0, "id": "", "offset": 4, "fraction": 1.0})["before"], 1)
+        self.assertEqual(index.search("word", {"spine": 0, "id": "", "offset": -1, "fraction": 1.0})["before"], 3)
         # No place: no line among the hits.
         self.assertEqual(index.search("word", None)["before"], -1)
         self.assertEqual(index.search("word", {"spine": 7})["before"], -1)
@@ -256,6 +267,43 @@ class BookIndexTest(TempDirTestCase):
         for spine, ident in ((0, "missing"), (0, "empty"), (5, "s"), (-1, "s")):
             place = index.sentence(spine, ident)
             self.assertEqual((place["offset"], place["text"]), (-1, ""), (spine, ident))
+
+    def test_text_at_a_page(self):
+        long = "First words of a rather long paragraph that goes on and on."
+        index = self.book(['<p>x</p>',
+                           '<h1 id="h">Two</h1><p>\U0001F600 ' + long + '</p><p>Next.</p>'],
+                          toc=[("Part two", "c1.xhtml#h")])
+        place = index.text_at(1, 3)
+        self.assertEqual((place["spine"], place["chapter"], place["offset"]), (1, "Part two", 3))
+        text = place["text"]
+        self.assertTrue(text.startswith("\U0001F600 First words"))
+        self.assertLessEqual(len(text), 40)
+        # Ends after a word, and its length counts like JavaScript.
+        self.assertEqual(("\U0001F600 " + long)[len(text)], " ")
+        self.assertEqual(place["length"], len(text) + 1)
+        self.assertTrue(place["line"].startswith("\U0001F600 First words"))
+        self.assertEqual(index.text_at(1, 0)["chapter"], "Part two")
+
+    def test_text_at_skips_spaces_and_stops_at_the_paragraph(self):
+        index = self.book(['<p>Short.</p><p>   Other words.</p>'])
+        self.assertEqual(index.text_at(0, 0)["text"], "Short.")
+        place = index.text_at(0, 6)
+        self.assertEqual((place["offset"], place["text"]), (9, "Other words."))
+
+    def test_text_at_paragraphs_without_space_between(self):
+        index = self.book(['<p>Short words.</p><p>Other</p>'])
+        self.assertEqual(index.text_at(0, 0)["text"], "Short words.")
+        long = " ".join(["word"] * 20)
+        index = self.book(['<p>' + long + '</p>'])
+        text = index.text_at(0, 0)["text"]
+        self.assertLessEqual(len(text), 40)
+        self.assertTrue(text.endswith("word"))
+
+    def test_text_at_gone(self):
+        index = self.book(['<p>abc</p><p>   </p>'])
+        for spine, offset in ((0, 3), (0, 4), (0, 99), (0, -1), (5, 0), (-1, 0)):
+            place = index.text_at(spine, offset)
+            self.assertEqual((place["offset"], place["text"]), (-1, ""), (spine, offset))
 
     def test_mini_readaloud(self):
         index = BookIndex(MINI_DIR)

@@ -5,7 +5,7 @@ from bookfish import positions
 
 from .helpers import TempDirTestCase
 
-POSITION = {"spine": 3, "id": "item19-s5", "fraction": 0.25, "heard": False}
+POSITION = {"spine": 3, "id": "item19-s5", "fraction": 0.25, "heard": False, "offset": 1200}
 
 
 class PositionsTest(TempDirTestCase):
@@ -28,7 +28,7 @@ class PositionsTest(TempDirTestCase):
         positions.save(self.path, "b", other)
         self.assertEqual(positions.load(self.path, "a"), POSITION)
         self.assertEqual(positions.load(self.path, "b"),
-                         {"spine": 0, "id": "", "fraction": 1.0, "heard": False})
+                         {"spine": 0, "id": "", "fraction": 1.0, "heard": False, "offset": -1})
 
     def test_overwrite(self):
         positions.save(self.path, "book", POSITION)
@@ -49,6 +49,19 @@ class PositionsTest(TempDirTestCase):
         # Only true itself counts.
         positions.save(self.path, "book", dict(POSITION, heard="yes"))
         self.assertIs(positions.load(self.path, "book")["heard"], False)
+
+    def test_offset(self):
+        # Not known (listening, a page without text), or from an older file.
+        for given in [-1, -5, 2.5, True, "7", None]:
+            positions.save(self.path, "book", dict(POSITION, offset=given))
+            self.assertEqual(positions.load(self.path, "book")["offset"], -1, given)
+        no_offset = dict(POSITION)
+        del no_offset["offset"]
+        positions.save(self.path, "book", no_offset)
+        self.assertEqual(positions.load(self.path, "book")["offset"], -1)
+        # A number from QML may come as a float.
+        positions.save(self.path, "book", dict(POSITION, offset=7.0))
+        self.assertEqual(positions.load(self.path, "book")["offset"], 7)
 
     def test_unknown_book_or_missing_file(self):
         self.assertIsNone(positions.load(self.path, "book"))

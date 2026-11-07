@@ -2,15 +2,14 @@ import QtQuick 2.0
 import Sailfish.Silica 1.0
 
 // Search in the open book: every paragraph holding all words typed. With
-// nothing typed, in a readaloud, the listening history: where listening
-// started, went on and ended, newest first.
+// nothing typed, the history: where reading and listening started, went on
+// and ended, newest first.
 Page {
     id: page
 
     property string root
     property string bookKey
-    property bool hasAudio: false
-    // The reader's place: {spine, id, fraction, heard}, see ReaderPage.here().
+    // The reader's place: {spine, id, fraction, heard, offset}, see ReaderPage.here().
     property var here
     // The words searched last in this book, shown again.
     property string initialQuery: ""
@@ -21,12 +20,12 @@ Page {
     property var result: null
     property string resultQuery: ""
     property string searchedQuery: ""
-    // The entries of the listening history shown, in the order of the rows.
+    // The entries of the history shown, in the order of the rows.
     property var places: []
 
     // The hits and the one chosen, for going from hit to hit in the book.
     signal selected(var hits, int index, string query)
-    // An entry of the listening history chosen: {spine, offset, length, text},
+    // An entry of the history chosen: {spine, offset, length, text},
     // see bridge.history.
     signal chosen(var place)
 
@@ -36,7 +35,7 @@ Page {
     }
 
     // Rows are hits ("hit"), the line at the reader's place ("here"),
-    // headings of listening sessions ("session") and their entries
+    // headings of sessions of reading or listening ("session") and their entries
     // ("entry"). A ListModel, not an array: a new array resets the list's
     // current item, which then takes the focus from the search field.
     function fillRows() {
@@ -79,7 +78,7 @@ Page {
         return new Date(seconds * 1000).toLocaleTimeString(Qt.locale(), Locale.ShortFormat)
     }
 
-    // "Today, 22:40–23:15"
+    // "Reading · Today, 22:40–23:15"
     function sessionText(session) {
         var start = new Date(session.start * 1000)
         var day = new Date(start.getFullYear(), start.getMonth(), start.getDate())
@@ -87,17 +86,20 @@ Page {
         var today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
         var days = Math.round((today - day) / 86400000)
         var date = days === 0
-                //: Heading of a listening session today, before its times
+                //: Heading of a session of reading or listening today, before its times
                 ? qsTr("Today")
                 : days === 1
-                  //: Heading of a listening session yesterday, before its times
+                  //: Heading of a session of reading or listening yesterday, before its times
                   ? qsTr("Yesterday")
                   : start.toLocaleDateString(Qt.locale(), Locale.ShortFormat)
         var times = timeText(session.start)
         if (timeText(session.end) !== times)
             times += "–" + timeText(session.end)
-        //: Heading of a listening session: day and times, e.g. "Today, 22:40–23:15"
-        return qsTr("%1, %2").arg(date).arg(times)
+        return session.mode === "reading"
+                //: Heading of a reading session: day and times, e.g. "Reading · Today, 22:40–23:15"
+                ? qsTr("Reading · %1, %2").arg(date).arg(times)
+                //: Heading of a listening session: day and times, e.g. "Listening · Today, 22:40–23:15"
+                : qsTr("Listening · %1, %2").arg(date).arg(times)
     }
 
     function kindText(kind) {
@@ -118,8 +120,20 @@ Page {
             //: Listening history: the sleep timer ended listening here
             return qsTr("Sleep timer")
         case "close":
-            //: Listening history: the book was closed while listening
+            //: History: the book was closed while reading or listening
             return qsTr("Book closed")
+        case "read":
+            //: History: reading began here (the page the book was opened at, or came back to)
+            return qsTr("Started reading")
+        case "page":
+            //: History: noted every few minutes while reading
+            return qsTr("Reading")
+        case "jump":
+            //: History: left this page for the contents, a search hit or the history
+            return qsTr("Jumped away")
+        case "away":
+            //: History: left the app while reading here
+            return qsTr("Left the app")
         default:
             //: Listening history: the narration reached the end of the book
             return qsTr("End of book")
@@ -145,9 +159,8 @@ Page {
         if (text.length < 2) {
             result = null
             fillRows()
-            searching = hasAudio
-            if (hasAudio)
-                py.call("bookfish.bridge.history", [root, app.historyFile, bookKey, serial])
+            searching = true
+            py.call("bookfish.bridge.history", [root, app.historyFile, bookKey, serial])
             return
         }
         searching = true
@@ -164,7 +177,7 @@ Page {
     // The keyboard only when there is nothing else to see: it would push
     // the history out of sight.
     onStatusChanged: {
-        if (status === PageStatus.Active && query === "" && (!hasAudio || !searching && places.length === 0))
+        if (status === PageStatus.Active && query === "" && !searching && places.length === 0)
             listView.headerItem.field.forceActiveFocus()
     }
 
@@ -189,7 +202,7 @@ Page {
             searching = false
             if (result.error) {
                 // The search is still there; it reports the error itself.
-                console.warn("Cannot show listening history", result.error, result.detail)
+                console.warn("Cannot show history", result.error, result.detail)
                 fillHistory([])
             } else {
                 fillHistory(result.sessions)
@@ -219,18 +232,11 @@ Page {
 
             width: listView.width
 
-            PageHeader {
-                visible: !page.hasAudio
-                //: Title of the page for searching the book
-                title: qsTr("Find")
-            }
-
-            // With the history below, the two parts have headings instead
-            // of the page.
+            // Search and history, each with a heading instead of one for
+            // the page.
             Column {
                 x: Theme.horizontalPageMargin
                 width: parent.width - 2 * x
-                visible: page.hasAudio
 
                 Item {
                     width: 1
@@ -241,7 +247,7 @@ Page {
                     width: parent.width
                     color: Theme.highlightColor
                     truncationMode: TruncationMode.Fade
-                    //: Heading of the search on the page with search and listening history
+                    //: Heading of the search on the page with search and history
                     text: qsTr("Find in this book")
                 }
 
@@ -292,8 +298,8 @@ Page {
                     color: Theme.highlightColor
                     truncationMode: TruncationMode.Fade
                     text: parent.history
-                          //: Heading of the listening history on the search page
-                          ? qsTr("Listening history")
+                          //: Heading of the history of reading and listening on the search page
+                          ? qsTr("History")
                           : !parent.hits ? ""
                           : page.result.total === 1
                             //: Heading of the search hits, one hit
@@ -308,7 +314,7 @@ Page {
                     truncationMode: TruncationMode.Fade
                     font.pixelSize: Theme.fontSizeExtraSmall
                     color: Theme.secondaryHighlightColor
-                    //: Below the heading of the listening history
+                    //: Below the heading of the history
                     text: qsTr("Newest first – tap to go there")
                 }
             }
@@ -323,7 +329,7 @@ Page {
                                    : column.height + 2 * Theme.paddingMedium
             enabled: !heading
 
-            // The reader's place among the hits, or a listening session.
+            // The reader's place among the hits, or a session of the history.
             SectionHeader {
                 visible: item.heading
                 anchors.verticalCenter: parent.verticalCenter
@@ -404,11 +410,6 @@ Page {
                   ? qsTr("Type words from the book")
                   //: The search found nothing
                   : qsTr("Nothing found")
-            // With audio the heading of the search says how it works.
-            hintText: query.trim().length < 2 && !hasAudio
-                      //: How the search works
-                      ? qsTr("Finds paragraphs holding all words, in any order")
-                      : ""
         }
 
         BusyIndicator {

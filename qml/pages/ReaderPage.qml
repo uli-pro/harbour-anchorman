@@ -26,6 +26,14 @@ WebViewPage {
     property int pageIndex: 0
     property int pageCount: 0
     property string firstId: ""
+    // Where the page shown begins in the text of chapter topChapter
+    // (UTF-16), or the text after it if it holds none (see framescript.js
+    // firstTextOn); with no text after it either, the last one known in the
+    // chapter. Kept apart from chapter, which changes as soon as another
+    // chapter is asked for: until it is shown, this is the place left.
+    property int topChapter: -1
+    property int topOffset: -1
+    property bool topOffsetOnPage: false
     // Page numbers across the book are estimated: only the current chapter
     // is laid out, the others are counted by their characters. Python counts
     // them once the first chapter is shown, so opening is not delayed.
@@ -63,7 +71,7 @@ WebViewPage {
     property bool findShown: false
     // A hit chosen in the list, shown once this page is back.
     property int pendingHit: -1
-    // An entry of the listening history chosen, likewise; see FindPage.
+    // An entry of the history chosen, likewise; see FindPage.
     property var pendingPlace: null
     // A bar covers the bottom of the text: the player's or the search's.
     readonly property bool lowerBar: barShown || findShown
@@ -79,6 +87,18 @@ WebViewPage {
     // How the next end of listening goes into the history, if not as the
     // player says: "timer", "close" or "end".
     property string stopKind: ""
+    // Reading, for the history: a session is open from the first page
+    // turned or jump made while nothing plays, until listening, leaving the
+    // app or the book. Pages turned since the last entry, and since the
+    // last jump: going from hit to hit notes only the place left first.
+    property bool reading: false
+    property bool turnedSinceEntry: false
+    property bool turnedSinceJump: true
+    // When reading last ended by leaving the app; coming back soon goes on
+    // with the same session (see history.SHORT_PAUSE).
+    property double awayAt: 0
+    // The place of the last reading entry, "spine:offset".
+    property string notedPlace: ""
 
     // Turning pages needs the horizontal swipe; the library is in the pulley.
     backNavigation: false
@@ -95,7 +115,7 @@ WebViewPage {
             if (pos && pos.spine < book.spine.length) {
                 if (pos.heard)
                     resumeId = pos.id
-                loadChapter(pos.spine, { id: pos.id, fraction: pos.fraction })
+                loadChapter(pos.spine, { id: pos.id, offset: pos.offset, fraction: pos.fraction })
             } else
                 loadChapter(Math.max(0, nextLinear(-1, 1)), { fraction: 0 })
         })
@@ -283,6 +303,10 @@ WebViewPage {
             pageIndex = data.page
             pageCount = data.pages
             firstId = data.firstId
+            if (data.offset >= 0 || topChapter !== chapter)
+                topOffset = data.offset
+            topChapter = chapter
+            topOffsetOnPage = data.offsetOnPage
             fraction = data.fraction
             updateBookPages()
             savePosition()
@@ -422,8 +446,22 @@ WebViewPage {
         flickable.webView.sendAsyncMessage("bookfish:unmark", {})
     }
 
-    // To a place found by the search: reading there, not listening.
+    // To a place from the contents, the search or the history: reading
+    // there, not listening. Like a back button, the history notes the place
+    // left.
+    // Not gated on ready: showing or hiding the search bar lays the page
+    // out again just before, while the place left is still the one shown.
     function jumpTo(index, target) {
+        if (!player.playing && topChapter >= 0) {
+            // Back soon after leaving the app, the session goes on: its "read"
+            // takes back the "away", so the place left is noted as a jump.
+            // Otherwise a new session begins with that place.
+            var goesOn = reading || Date.now() - awayAt <= 120 * 1000
+            beginReading()
+            if (goesOn && turnedSinceJump)
+                note("jump")
+            turnedSinceJump = false
+        }
         resumeId = ""
         jumpId = ""
         pause()
@@ -443,7 +481,7 @@ WebViewPage {
     function openFind() {
         var find = pageStack.push(Qt.resolvedUrl("FindPage.qml"),
                                   { root: book.root, here: here(), initialQuery: findQuery,
-                                    bookKey: book.key, hasAudio: hasAudio })
+                                    bookKey: book.key })
         find.selected.connect(function (hits, index, query) {
             findHits = hits
             findQuery = query
@@ -454,8 +492,8 @@ WebViewPage {
         })
     }
 
-    // A sentence of the listening history: marked like a hit, without
-    // going on to other hits.
+    // A place from the history: marked like a hit, without going on to
+    // other hits.
     function showPlace(place) {
         // The book may have changed since.
         if (place.spine >= book.spine.length)
@@ -473,7 +511,8 @@ WebViewPage {
             return { spine: chapter, id: player.currentId, fraction: fraction, heard: true }
         if (!player.active && resumeId)
             return { spine: chapter, id: resumeId, fraction: fraction, heard: true }
-        return { spine: chapter, id: firstId, fraction: fraction, heard: false }
+        return { spine: chapter, id: firstId, fraction: fraction, heard: false,
+                 offset: topChapter === chapter && topOffsetOnPage ? topOffset : -1 }
     }
 
     function hit(x, y) {
@@ -519,6 +558,9 @@ WebViewPage {
     // book. Then the listening history notes it.
     function playbackChanged() {
         if (player.playing) {
+            // Pages now follow the narration; that is listening.
+            reading = false
+            awayAt = 0
             // One set while not playing would apply to a later pause.
             stopKind = ""
             record("start")
@@ -533,12 +575,43 @@ WebViewPage {
     function record(kind) {
         if (player.index < 0)
             return
-        py.call("bookfish.bridge.add_history",
-                [app.historyFile, book.key, kind, { spine: player.chapter, id: player.currentId }],
+        addHistory(kind, { spine: player.chapter, id: player.currentId })
+    }
+
+    // Reading: the page shown, or the text after it if it holds none (a
+    // picture), see topOffset. A chapter without text has its start.
+    function note(kind) {
+        if (topChapter < 0)
+            return
+        turnedSinceEntry = false
+        var offset = Math.max(0, topOffset)
+        notedPlace = topChapter + ":" + offset
+        addHistory(kind, { spine: topChapter, offset: offset })
+    }
+
+    function addHistory(kind, place) {
+        py.call("bookfish.bridge.add_history", [app.historyFile, book.key, kind, place],
                 function (result) {
                     if (result !== true)
-                        console.warn("Cannot note listening history", result.error, result.detail)
+                        console.warn("Cannot note history", kind, result.error, result.detail)
                 })
+    }
+
+    function beginReading() {
+        if (reading || player.playing)
+            return
+        note("read")
+        reading = true
+    }
+
+    // Reading ends: the place it ended at goes into the history.
+    function endReading(kind) {
+        if (!reading)
+            return
+        note(kind)
+        reading = false
+        if (kind === "away")
+            awayAt = Date.now()
     }
 
     function openSleepTimer() {
@@ -610,6 +683,12 @@ WebViewPage {
             barShown = false
             player.busy = false
         }
+        if (!player.playing) {
+            // The place before the first page turned begins the session.
+            beginReading()
+            turnedSinceEntry = true
+            turnedSinceJump = true
+        }
         resumeId = ""
         jumpId = ""
         flickable.webView.sendAsyncMessage("bookfish:turn", { delta: delta })
@@ -626,10 +705,13 @@ WebViewPage {
         var heard = player.active && (player.playing || barShown)
         var spine = heard ? player.chapter : chapter
         var heardId = heard ? player.currentId : !player.active ? resumeId : ""
+        // The page read, by its first character: also right after a change
+        // of font size in books without sentences. Not while listening.
+        var offset = heardId === "" && spine === topChapter && topOffsetOnPage ? topOffset : -1
         py.call("bookfish.bridge.save_position",
                 [app.positionsFile, book.key, { spine: spine, id: heardId || firstId,
                                                 fraction: spine === chapter ? fraction : 0,
-                                                heard: heardId !== "" }],
+                                                heard: heardId !== "", offset: offset }],
                 function (result) {
                     if (result !== true)
                         console.warn("Cannot save position", result.error, result.detail)
@@ -655,8 +737,10 @@ WebViewPage {
     Connections {
         target: Qt.application
         onStateChanged: {
-            if (Qt.application.state !== Qt.ApplicationActive)
+            if (Qt.application.state !== Qt.ApplicationActive) {
                 page.savePosition()
+                page.endReading("away")
+            }
         }
     }
 
@@ -766,6 +850,19 @@ WebViewPage {
         onTriggered: page.record("mark")
     }
 
+    Timer {
+        // Where reading was every few minutes, if pages were turned: to
+        // find the place again after turning too far by mistake.
+        interval: 5 * 60 * 1000
+        repeat: true
+        running: page.reading && Qt.application.state === Qt.ApplicationActive
+        onTriggered: {
+            if (page.turnedSinceEntry
+                    && page.notedPlace !== page.topChapter + ":" + Math.max(0, page.topOffset))
+                page.note("page")
+        }
+    }
+
     Rectangle {
         anchors.fill: parent
         color: pageColor
@@ -844,6 +941,7 @@ WebViewPage {
                 text: qsTr("Library")
                 onClicked: {
                     savePosition()
+                    endReading("close")
                     closed = true
                     stopKind = "close"
                     stopPlayer()
@@ -851,11 +949,8 @@ WebViewPage {
                 }
             }
             MenuItem {
-                text: hasAudio
-                      //: Opens the search in the book and its listening history
-                      ? qsTr("Find & history")
-                      //: Opens the search in the book
-                      : qsTr("Find")
+                //: Opens the search in the book and its history of reading and listening
+                text: qsTr("Find & history")
                 onClicked: openFind()
             }
             MenuItem {
