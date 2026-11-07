@@ -383,70 +383,70 @@ Sleep timer button with the minutes left, e.g. &quot;23 min&quot;</extracomment>
 <context>
     <name>ReaderPage</name>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="838"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="847"/>
         <source>The narration could not be played.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="910"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="919"/>
         <source>Chapter %1/%2</source>
         <extracomment>Chapter in the book, e.g. &quot;Chapter 3/12&quot;</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="926"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="935"/>
         <source>Page %1/%2</source>
         <extracomment>Estimated page in the whole book, e.g. &quot;Page 30/295&quot;</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="950"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="959"/>
         <source>Settings</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="966"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="975"/>
         <source>Find &amp; history</source>
         <extracomment>Opens the search in the book and its history of reading and listening</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="1088"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="1097"/>
         <source>%1×</source>
         <extracomment>Playback speed on the button that opens the settings, e.g. &quot;1.25×&quot;</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="1110"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="1119"/>
         <source>Chapter</source>
         <extracomment>Sleep timer button while it waits for the end of the chapter</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="1112"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="1121"/>
         <source>%1 min</source>
         <extracomment>Sleep timer button with the minutes left, e.g. &quot;23 min&quot;</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="1150"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="1159"/>
         <source>%1 / %2</source>
         <extracomment>Search hit shown and number of hits, e.g. &quot;3 / 39&quot;</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="954"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="963"/>
         <source>Library</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="679"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="680"/>
         <source>Chapter %1</source>
         <extracomment>Chapter without a title in the contents, e.g. &quot;Chapter 12&quot;</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/ReaderPage.qml" line="970"/>
+        <location filename="../qml/pages/ReaderPage.qml" line="979"/>
         <source>Contents</source>
         <translation type="unfinished"></translation>
     </message>
@@ -593,47 +593,47 @@ Sleep timer button with the minutes left, e.g. &quot;23 min&quot;</extracomment>
 <context>
     <name>harbour-bookfish</name>
     <message>
-        <location filename="../qml/harbour-bookfish.qml" line="112"/>
+        <location filename="../qml/harbour-bookfish.qml" line="111"/>
         <source>This file is not an EPUB book.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-bookfish.qml" line="115"/>
+        <location filename="../qml/harbour-bookfish.qml" line="114"/>
         <source>This book is too large or damaged.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-bookfish.qml" line="117"/>
+        <location filename="../qml/harbour-bookfish.qml" line="116"/>
         <source>Not enough free space to open this book.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-bookfish.qml" line="119"/>
+        <location filename="../qml/harbour-bookfish.qml" line="118"/>
         <source>This book contains unsafe file names and was not opened.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-bookfish.qml" line="121"/>
+        <location filename="../qml/harbour-bookfish.qml" line="120"/>
         <source>This book is protected by DRM and cannot be opened.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-bookfish.qml" line="123"/>
+        <location filename="../qml/harbour-bookfish.qml" line="122"/>
         <source>The book could not be read.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-bookfish.qml" line="125"/>
+        <location filename="../qml/harbour-bookfish.qml" line="124"/>
         <source>This audiobook cannot be played.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-bookfish.qml" line="127"/>
+        <location filename="../qml/harbour-bookfish.qml" line="126"/>
         <source>This book is damaged.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-bookfish.qml" line="211"/>
+        <location filename="../qml/harbour-bookfish.qml" line="205"/>
         <source>Internal error. Please report it with the log.</source>
         <translation type="unfinished"></translation>
     </message>

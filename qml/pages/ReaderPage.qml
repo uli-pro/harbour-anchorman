@@ -1,6 +1,7 @@
 import QtQuick 2.0
 import Sailfish.Silica 1.0
 import Sailfish.WebView 1.0
+import Sailfish.WebEngine 1.0
 import "../components"
 
 WebViewPage {
@@ -813,7 +814,15 @@ WebViewPage {
         onTriggered: page.showPending(true)
     }
 
-    Component.onCompleted: app.reader = page
+    Component.onCompleted: {
+        // Before the view is initialised: only our frame script may run code
+        // in the book's pages; scripts that came with a book never run. Here,
+        // not at the start of the app: the web engine starts with this
+        // import, and the app then hangs on closing if no page was ever shown
+        // in it (seen on the device after listening to an audiobook).
+        WebEngineSettings.javascriptEnabled = false
+        app.reader = page
+    }
     Component.onDestruction: {
         if (app.reader === page)
             app.reader = null

@@ -1,6 +1,5 @@
 import QtQuick 2.0
 import Sailfish.Silica 1.0
-import Sailfish.WebEngine 1.0
 import Nemo.Configuration 1.0
 import io.thp.pyotherside 1.5
 import "components"
@@ -136,11 +135,6 @@ ApplicationWindow {
     cover: Qt.resolvedUrl("cover/CoverPage.qml")
     allowedOrientations: defaultAllowedOrientations
 
-    Component.onCompleted: {
-        // Only our frame script may run code in the book's pages; scripts
-        // that came with a book never run.
-        WebEngineSettings.javascriptEnabled = false
-    }
 
     ConfigurationValue {
         id: fontSizeSetting
