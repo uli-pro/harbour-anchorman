@@ -50,10 +50,18 @@ for v in 3.8 3.11; do
 done
 ```
 
-## AI assistance
+## How this app is made
 
-This app is written with the help of an AI assistant (Claude by Anthropic).
-All code is reviewed and understood by the human maintainer before it is merged.
+Bookfish is made by one person working with an AI assistant (Claude by Anthropic).
+
+- Ulrich Probst (maintainer) decides what the app does and how it behaves:
+  features, design and priorities. He approves a written specification
+  before each step and tests every change on his own phone.
+- The AI writes the code, tests and documentation and proposes the
+  technical solutions.
+- Every change is checked by unit tests, the Harbour validator and an
+  independent second AI review. The maintainer does not review the code
+  line by line.
 
 ## License
 
