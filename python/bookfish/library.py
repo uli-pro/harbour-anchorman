@@ -1,5 +1,12 @@
 """Finding the books in the library folders and what the library shows
-of them, kept in a cache file so that a memory card is not read again."""
+of them, kept in a cache file so that a memory card is not read again.
+
+A book is an EPUB file or an audiobook. An audiobook is an M4B file, an MP3
+file beside EPUBs (an author's folder holding several books) or in a library
+folder itself, or a folder of MP3 files without EPUBs, each file a chapter. An audiobook named like an
+EPUB beside it is that book read aloud: it shows the EPUB's title, author,
+series and cover.
+"""
 
 import collections
 import hashlib
@@ -11,6 +18,8 @@ import stat
 import struct
 import zipfile
 
+from . import mp3, mp4
+from .audioutil import natural_key, picture_type
 from .errors import EpubError
 from .package import check_encryption, package_path, read_info
 from .xmlutil import MAX_XML_SIZE, parse_xml_data
@@ -21,7 +30,7 @@ MAX_COVER_SIZE = 5 * 1024 * 1024
 # file can hold a huge image. JPEG is decoded scaled.
 MAX_COVER_PIXELS = 4096
 # Raised whenever what is read from a book changes, so that all are read again.
-_CACHE_VERSION = 4
+_CACHE_VERSION = 5
 # Errors that say something about the book. Others (a card pulled out, no
 # memory) may pass, so the book is read again next time.
 _BOOK_ERRORS = (EpubError, zipfile.BadZipFile, zipfile.LargeZipFile, KeyError, ValueError,
@@ -31,16 +40,24 @@ _UNREAD = [-1, -1]
 # book it started from had "urn:uuid:…" or nothing.
 _ID_PREFIXES = ("urn:", "uuid:", "url:", "asin:")
 _COVER_FILE = re.compile(r"^([0-9a-f]{16})(\.[a-z]+)?(\.part)?$")
+# A picture beside the audio files of a folder; or the one in the tags.
+_FOLDER_COVER = re.compile(r"cover\.(jpe?g|png)", re.IGNORECASE)
+_EMBEDDED_COVERS = ("embedded.jpg", "embedded.png")
+_AUDIO_TYPES = (".mp3", ".m4b")
+# kind: "epub" (with or without narration, see audio) or "audiobook".
 _INFO_FIELDS = {"identifier": str, "title": str, "authors": list, "sort": str,
                 "series": str, "index": (float, type(None)),
-                "cover": (str, type(None)), "audio": bool, "broken": bool}
+                "cover": (str, type(None)), "audio": bool, "broken": bool, "kind": str}
+_KINDS = ("epub", "audiobook")
 
-BookFile = collections.namedtuple("BookFile", "path name")
-BookFile.__doc__ = "An EPUB file; name is the file name without extension."
+BookFile = collections.namedtuple("BookFile", "path name kind files", defaults=("epub", ()))
+BookFile.__doc__ = """A book found: path of the EPUB or audio file, or of
+the folder of an audiobook; name is the file name without extension or the
+folder name; kind "epub" or "audiobook"; files the audio files in order."""
 
 
 def list_books(folders):
-    """Return the EPUB files below folders, sorted by name.
+    """Return the books below folders (see BookFile), sorted by name.
 
     Hidden files and folders are left out. Symbolic links to folders are not
     followed, so a link cannot make the walk endless. Missing folders are
@@ -52,9 +69,11 @@ def list_books(folders):
     for folder in folders:
         for dirpath, dirnames, filenames in os.walk(folder):
             dirnames[:] = [d for d in dirnames if not d.startswith(".")]
+            epubs, mp3s = [], []
             for filename in filenames:
                 stem, ext = os.path.splitext(filename)
-                if ext.lower() != ".epub" or filename.startswith("."):
+                ext = ext.lower()
+                if ext not in (".epub",) + _AUDIO_TYPES or filename.startswith("."):
                     continue
                 path = os.path.join(dirpath, filename)
                 try:
@@ -65,9 +84,32 @@ def list_books(folders):
                 if real in seen:
                     continue
                 seen.add(real)
-                books.append(BookFile(path, stem))
+                if ext == ".epub":
+                    epubs.append(path)
+                    books.append(BookFile(path, stem))
+                elif ext == ".m4b":
+                    books.append(BookFile(path, stem, "audiobook", (path,)))
+                else:
+                    mp3s.append(path)
+            # Beside EPUBs each MP3 is a book: an author's folder. So in
+            # the library folder itself, which is no audiobook.
+            if epubs or dirpath == folder:
+                books.extend(BookFile(path, os.path.splitext(os.path.basename(path))[0],
+                                      "audiobook", (path,)) for path in mp3s)
+            elif mp3s:
+                mp3s.sort(key=lambda path: natural_key(os.path.basename(path)))
+                books.append(BookFile(dirpath, os.path.basename(dirpath), "audiobook",
+                                      tuple(mp3s)))
     books.sort(key=lambda book: (book.name.casefold(), book.path))
     return books
+
+
+def audio_files(folder):
+    """The MP3 files of an audiobook folder in order, as list_books finds
+    them."""
+    names = [name for name in os.listdir(folder)
+             if os.path.splitext(name)[1].lower() == ".mp3" and not name.startswith(".")]
+    return [os.path.join(folder, name) for name in sorted(names, key=natural_key)]
 
 
 def card_folders(media_root):
@@ -100,15 +142,46 @@ def book_info(path):
                 broken = True
     return {"identifier": info.identifier, "title": info.title, "authors": info.authors,
             "sort": info.sort, "series": info.series, "index": info.series_index,
-            "cover": info.cover, "audio": info.audio, "broken": broken}
+            "cover": info.cover, "audio": info.audio, "broken": broken, "kind": "epub"}
 
 
-def broken_info(path):
-    """The entry of a book that cannot be read: listed by its file name, so
-    that opening it explains what is wrong."""
-    return {"identifier": "", "title": os.path.splitext(os.path.basename(path))[0],
+def audio_info(book):
+    """The library entry of the audiobook book (a BookFile), from the tags
+    of its first file.
+
+    Raises AudioError or OSError if the file is unusable.
+    """
+    first = book.files[0]
+    reader = mp4 if first.lower().endswith(".m4b") else mp3
+    tags = reader.read(first, chapters=False)
+    if len(book.files) == 1 and book.path == first:
+        # Audible files have the title in one and the title plus
+        # "(Unabridged)" or a subtitle in the other, in either order.
+        names = [name for name in (tags["title"], tags["album"]) if name]
+        title = min(names, key=len) if names else ""
+    else:
+        title = tags["album"]
+    author = tags["albumartist"] or tags["artist"]
+    cover = None
+    if book.path != first:
+        cover = next((name for name in sorted(os.listdir(book.path))
+                      if _FOLDER_COVER.fullmatch(name)), None)
+    if cover is None and tags["picture"]:
+        cover = "embedded." + tags["picture"]
+    return {"identifier": "", "title": title or book.name, "authors": [author] if author else [],
+            "sort": "", "series": "", "index": None, "cover": cover, "audio": False,
+            "broken": False, "kind": "audiobook"}
+
+
+def broken_info(path, kind="epub"):
+    """The entry of a book that cannot be read: listed by its file or
+    folder name, so that opening it explains what is wrong."""
+    name = os.path.basename(path)
+    if not os.path.isdir(path):
+        name = os.path.splitext(name)[0]
+    return {"identifier": "", "title": name,
             "authors": [], "sort": "", "series": "", "index": None, "cover": None,
-            "audio": False, "broken": True}
+            "audio": False, "broken": True, "kind": kind}
 
 
 def scan(folders, cache_file):
@@ -126,24 +199,20 @@ def scan(folders, cache_file):
     entries = []
     changed = False
     for book in list_books(folders):
-        try:
-            st = os.stat(book.path)
-        except OSError:
+        stamp = _stamp(book)
+        if stamp is None:
             continue
-        if not stat.S_ISREG(st.st_mode):
-            continue
-        stamp = [st.st_size, st.st_mtime_ns]
         old = known.get(book.path)
-        if old is not None and old["stamp"] == stamp:
+        if old is not None and old["stamp"] == stamp and old["info"]["kind"] == book.kind:
             info = old["info"]
         else:
             changed = True
             try:
-                info = book_info(book.path)
+                info = book_info(book.path) if book.kind == "epub" else audio_info(book)
             except _BOOK_ERRORS:
-                info = broken_info(book.path)
+                info = broken_info(book.path, book.kind)
             except Exception:
-                info = broken_info(book.path)
+                info = broken_info(book.path, book.kind)
                 stamp = _UNREAD
         entries.append({"path": book.path, "stamp": stamp, "info": info})
     # A folder gone during the walk, e.g. a card pulled out: what was seen
@@ -157,6 +226,26 @@ def scan(folders, cache_file):
         others = [e for e in cached if e["path"] not in known]
         _save_cache(cache_file, others + entries)
     return entries, changed
+
+
+def _stamp(book):
+    """[size, modification time] of the book's file, or None if it is not
+    a regular file. For a folder the size of its files and a number made
+    from their names, sizes and times: a renamed file changes no time."""
+    try:
+        if book.path in book.files or book.kind == "epub":
+            st = os.stat(book.path)
+            return [st.st_size, st.st_mtime_ns] if stat.S_ISREG(st.st_mode) else None
+        size = 0
+        digest = hashlib.sha1()
+        for path in book.files:
+            st = os.stat(path)
+            size += st.st_size
+            digest.update("{}\0{}\0{}\0".format(os.path.basename(path), st.st_size, st.st_mtime_ns)
+                          .encode("utf-8", "surrogateescape"))
+        return [size, int.from_bytes(digest.digest()[:7], "big")]
+    except OSError:
+        return None
 
 
 def load_cached(cache_file):
@@ -186,7 +275,55 @@ def without_replaced(entries):
                 if e["info"]["audio"] and e["info"]["identifier"]}
     return [e for e in entries
             if e["info"]["audio"] or not e["info"]["identifier"]
-            or key(e["info"]) not in narrated]
+            or e["info"]["kind"] != "epub" or key(e["info"]) not in narrated]
+
+
+def arranged(entries, roots=()):
+    """The books as the library shows them: [(entry, info, partner)].
+
+    A readaloud replaces its EPUB (see without_replaced) and with it the
+    audiobook of that EPUB. An audiobook named like an EPUB beside it has
+    that EPUB as partner and shows its title, authors and series. Another
+    audiobook takes the author of the EPUBs beside it if they all have the
+    same: its tags may name the author otherwise ("Timothy J. Keller" for
+    "Keller, Timothy") or name the narrator. Not in the library folders
+    roots themselves, which may hold anybody's books.
+    """
+    roots = {os.path.normpath(root) for root in roots}
+    epubs = {e["path"]: e for e in entries if e["info"]["kind"] == "epub"}
+    kept = without_replaced(entries)
+    kept_paths = {e["path"] for e in kept}
+    neighbours = collections.defaultdict(set)
+    sorts = {}
+    for e in epubs.values():
+        folder = os.path.dirname(e["path"])
+        authors = e["info"]["authors"]
+        neighbours[folder].add(authors[0] if authors else "")
+        sorts.setdefault(folder, e["info"]["sort"])
+    result = []
+    for entry in kept:
+        info = entry["info"]
+        if info["kind"] != "audiobook":
+            result.append((entry, info, None))
+            continue
+        folder = os.path.dirname(entry["path"])
+        partner = epubs.get(os.path.join(folder, _audiobook_name(entry["path"]) + ".epub"))
+        if partner is not None:
+            if partner["path"] not in kept_paths:
+                continue
+            p = partner["info"]
+            info = dict(info, title=p["title"], authors=p["authors"], sort=p["sort"],
+                        series=p["series"], index=p["index"])
+        elif (len(neighbours.get(folder, ())) == 1 and "" not in neighbours[folder]
+              and os.path.normpath(folder) not in roots):
+            info = dict(info, authors=list(neighbours[folder]), sort=sorts[folder])
+        result.append((entry, info, partner))
+    return result
+
+
+def _audiobook_name(path):
+    stem, ext = os.path.splitext(os.path.basename(path))
+    return stem if ext.lower() in _AUDIO_TYPES else os.path.basename(path)
 
 
 def normal_identifier(identifier):
@@ -213,6 +350,10 @@ def extract_cover(epub_path, cover, target):
         return False
     if not _small_image(data):
         return False
+    return _write_cover(data, target)
+
+
+def _write_cover(data, target):
     tmp = target + ".part"
     try:
         with open(tmp, "wb") as f:
@@ -221,6 +362,32 @@ def extract_cover(epub_path, cover, target):
     except OSError:
         return False
     return True
+
+
+def extract_audio_cover(path, cover, target):
+    """Copy the cover of the audiobook at path (file or folder) to target:
+    cover is a picture file in the folder or embedded.jpg/.png, the picture
+    in the tags of the (first) file. Returns False if there is no usable
+    image."""
+    try:
+        if cover in _EMBEDDED_COVERS:
+            first = path if not os.path.isdir(path) else (audio_files(path) or [None])[0]
+            if first is None:
+                return False
+            reader = mp4 if first.lower().endswith(".m4b") else mp3
+            data = reader.picture(first)
+        elif _FOLDER_COVER.fullmatch(cover) and os.path.isdir(path):
+            with _open_regular(os.path.join(path, cover)) as f:
+                data = f.read(MAX_COVER_SIZE + 1)
+        else:
+            return False
+    except Exception:
+        return False
+    if (not data or len(data) > MAX_COVER_SIZE
+            or picture_type(data) != os.path.splitext(cover)[1].lower().replace("jpeg", "jpg")[1:]
+            or not _small_image(data)):
+        return False
+    return _write_cover(data, target)
 
 
 def cover_name(entry):
@@ -311,5 +478,6 @@ def _valid_entry(entry):
         return False
     info = entry["info"]
     return (all(isinstance(info.get(field), kind) for field, kind in _INFO_FIELDS.items())
+            and info["kind"] in _KINDS
             and all(isinstance(a, str) for a in info["authors"])
             and (info["index"] is None or math.isfinite(info["index"])))

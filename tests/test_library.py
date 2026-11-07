@@ -10,6 +10,7 @@ from bookfish.library import (BookFile, book_info, broken_info, card_folders, ex
                                list_books, load_cached, normal_identifier,
                                prune_covers, scan, without_replaced)
 
+from . import audiodata as ad
 from .helpers import TempDirTestCase, make_epub, write_files
 
 
@@ -112,7 +113,8 @@ class BookInfoTest(TempDirTestCase):
                    audio=True)
         self.assertEqual(book_info(path), {
             "identifier": "id-1", "title": "A Book", "authors": ["Ann Author"], "sort": "Ann Author",
-            "series": "S", "index": 3.0, "cover": "OPS/cover.png", "audio": True, "broken": False})
+            "series": "S", "index": 3.0, "cover": "OPS/cover.png", "audio": True, "broken": False,
+            "kind": "epub"})
 
     def test_unusable_books_raise(self):
         cases = {
@@ -287,3 +289,165 @@ class CoverTest(TempDirTestCase):
         path = os.path.join(self.tmp, "b.epub")
         write_book(path, cover=b"x" * (5 * 1024 * 1024 + 1))
         self.assertFalse(extract_cover(path, "OPS/cover.png", os.path.join(self.tmp, "c.png")))
+
+
+class AudiobookTest(TempDirTestCase):
+    """Audiobooks in the library: which files make a book, and their entries."""
+
+    def path(self, name):
+        return os.path.join(self.tmp, *name.split("/"))
+
+    def write(self, files):
+        write_files(self.tmp, files)
+
+    def test_folder_without_epub_is_one_book_in_natural_order(self):
+        tune = ad.mp3([ad.text("TIT2", "x")])
+        self.write({"Kling/Book/Book-10.mp3": tune, "Kling/Book/Book-2.mp3": tune,
+                    "Kling/Book/cover.jpg": ad.JPEG, "Kling/Book/.hidden.mp3": tune})
+        self.assertEqual(list_books([self.tmp]), [
+            BookFile(self.path("Kling/Book"), "Book", "audiobook",
+                     (self.path("Kling/Book/Book-2.mp3"), self.path("Kling/Book/Book-10.mp3")))])
+
+    def test_mp3s_beside_epubs_are_books_of_their_own(self):
+        tune = ad.mp3([ad.text("TIT2", "x")])
+        self.write({"Follett/a.mp3": tune, "Follett/b.mp3": tune, "Follett/a.epub": "",
+                    "Follett/c.M4B": ad.m4b()})
+        self.assertEqual(list_books([self.tmp]), [
+            BookFile(self.path("Follett/a.epub"), "a"),
+            BookFile(self.path("Follett/a.mp3"), "a", "audiobook", (self.path("Follett/a.mp3"),)),
+            BookFile(self.path("Follett/b.mp3"), "b", "audiobook", (self.path("Follett/b.mp3"),)),
+            BookFile(self.path("Follett/c.M4B"), "c", "audiobook", (self.path("Follett/c.M4B"),))])
+
+    def test_mp3s_in_the_library_folder_itself_are_books(self):
+        tune = ad.mp3([ad.text("TIT2", "x")])
+        self.write({"one.mp3": tune, "two.mp3": tune})
+        self.assertEqual([(b.path, b.kind) for b in list_books([self.tmp])],
+                         [(self.path("one.mp3"), "audiobook"), (self.path("two.mp3"), "audiobook")])
+        # Found again from the cache: nothing changed, nothing added.
+        cache = os.path.join(self.tmp, "library.json")
+        scan([self.tmp], cache)
+        self.assertEqual(scan([self.tmp], cache)[1], False)
+        self.assertEqual(len(load_cached(cache)), 2)
+
+    def test_m4b_files_are_books_also_without_epubs(self):
+        self.write({"x/one.m4b": ad.m4b(), "x/two.m4b": ad.m4b()})
+        self.assertEqual([b.name for b in list_books([self.tmp])], ["one", "two"])
+
+    def test_info_of_a_single_file(self):
+        self.write({"a.mp3": ad.mp3([ad.text("TIT2", "Jackdaws"), ad.text("TALB", "Jackdaws (Unabridged)"),
+                                     ad.text("TPE1", "Ken Follett"), ad.apic(ad.JPEG)]),
+                    "b.epub": ""})
+        book = [b for b in list_books([self.tmp]) if b.kind == "audiobook"][0]
+        self.assertEqual(library.audio_info(book), {
+            "identifier": "", "title": "Jackdaws", "authors": ["Ken Follett"], "sort": "",
+            "series": "", "index": None, "cover": "embedded.jpg", "audio": False,
+            "broken": False, "kind": "audiobook"})
+
+    def test_info_of_a_folder(self):
+        first = ad.mp3([ad.text("TIT2", "Chapter 1"), ad.text("TALB", "The Book"),
+                        ad.text("TPE1", "Reader"), ad.text("TPE2", "Writer, Wanda"), ad.apic(ad.PNG)])
+        self.write({"f/01.mp3": first, "f/02.mp3": ad.mp3([]), "f/Cover.PNG": ad.PNG})
+        info = library.audio_info(list_books([self.tmp])[0])
+        self.assertEqual((info["title"], info["authors"], info["cover"]),
+                         ("The Book", ["Writer, Wanda"], "Cover.PNG"))
+        os.remove(self.path("f/Cover.PNG"))
+        self.write({"f/01.mp3": ad.mp3([ad.text("TPE1", "Reader")])})
+        info = library.audio_info(list_books([self.tmp])[0])
+        self.assertEqual((info["title"], info["authors"], info["cover"]), ("f", ["Reader"], None))
+
+    def test_scan_reads_folders_again_when_a_file_changes(self):
+        books = self.path("books")
+        self.write({"books/f/1.mp3": ad.mp3([ad.text("TALB", "Old")]), "books/f/2.mp3": ad.mp3([])})
+        cache = self.path("library.json")
+        entries, changed = scan([books], cache)
+        self.assertEqual((entries[0]["info"]["title"], changed), ("Old", True))
+        self.assertEqual(scan([books], cache)[1], False)
+        self.write({"books/f/1.mp3": ad.mp3([ad.text("TALB", "New title")])})
+        entries, changed = scan([books], cache)
+        self.assertEqual((entries[0]["info"]["title"], changed), ("New title", True))
+        # A file renamed, added, removed, at once after the last scan.
+        for change in (lambda: os.rename(self.path("books/f/2.mp3"), self.path("books/f/3.mp3")),
+                       lambda: self.write({"books/f/4.mp3": b""}),
+                       lambda: os.remove(self.path("books/f/4.mp3"))):
+            scan([books], cache)
+            change()
+            self.assertEqual(scan([books], cache)[1], True)
+
+    def test_broken_audiobook_listed_by_name(self):
+        self.write({"books/Dr.-Devil/1.mp3": b"no audio here", "books/x.m4b": b"nothing"})
+        entries, _ = scan([self.path("books")], self.path("library.json"))
+        self.assertEqual([(e["info"]["title"], e["info"]["broken"], e["info"]["kind"]) for e in entries],
+                         [("Dr.-Devil", True, "audiobook"), ("x", True, "audiobook")])
+
+    def test_audio_cover_from_tags_or_folder(self):
+        self.write({"a.mp3": ad.mp3([ad.apic(ad.JPEG)]), "f/1.mp3": ad.mp3([ad.apic(ad.PNG)]),
+                    "f/cover.png": ad.PNG, "g/1.mp3": ad.mp3([]), "g/cover.jpg": ad.PNG,
+                    "m.m4b": ad.m4b(items=[ad.item(b"covr", ad.JPEG, 13)])})
+        target = self.path("cover.out")
+        for path, cover, expected in (("a.mp3", "embedded.jpg", ad.JPEG),
+                                      ("f", "embedded.png", ad.PNG), ("f", "cover.png", ad.PNG),
+                                      ("m.m4b", "embedded.jpg", ad.JPEG)):
+            self.assertTrue(library.extract_audio_cover(self.path(path), cover, target), path)
+            with open(target, "rb") as f:
+                self.assertEqual(f.read(), expected)
+        # A PNG named .jpg, a name that is no cover, a path out of the folder.
+        for path, cover in (("g", "cover.jpg"), ("a.mp3", "embedded.png"), ("f", "1.mp3"),
+                            ("f", "../a.mp3"), ("g", "embedded.jpg")):
+            self.assertFalse(library.extract_audio_cover(self.path(path), cover, target), cover)
+
+
+def audio_entry(path, title="T", authors=(), kind="audiobook", **info):
+    entry = {"path": path, "stamp": [1, 2], "info": {
+        "identifier": "", "title": title, "authors": list(authors), "sort": "", "series": "",
+        "index": None, "cover": None, "audio": False, "broken": False, "kind": kind}}
+    entry["info"].update(info)
+    return entry
+
+
+class ArrangedTest(unittest.TestCase):
+
+    def test_paired_audiobook_shows_its_epub(self):
+        epub = audio_entry("/l/A/x.epub", "Real Title", ["Ann, A"], kind="epub",
+                           identifier="id", series="S", index=2.0, sort="Ann, A")
+        audio = audio_entry("/l/A/x.mp3", "x (Unabridged)", ["A Ann"])
+        folder = audio_entry("/l/A/x", "Folder", ["Narrator"])
+        result = library.arranged([epub, audio, folder])
+        self.assertEqual([(e["path"], i["title"], i["authors"], i["series"], p and p["path"])
+                          for e, i, p in result],
+                         [("/l/A/x.epub", "Real Title", ["Ann, A"], "S", None),
+                          ("/l/A/x.mp3", "Real Title", ["Ann, A"], "S", "/l/A/x.epub"),
+                          ("/l/A/x", "Real Title", ["Ann, A"], "S", "/l/A/x.epub")])
+
+    def test_readaloud_hides_epub_and_its_audiobook(self):
+        epub = audio_entry("/l/x.epub", "T", kind="epub", identifier="urn:uuid:1")
+        readaloud = audio_entry("/l/x-readaloud.epub", "T", kind="epub", identifier="uuid:1",
+                                audio=True)
+        audio = audio_entry("/l/x.m4b")
+        self.assertEqual([e["path"] for e, _, _ in library.arranged([epub, readaloud, audio])],
+                         ["/l/x-readaloud.epub"])
+
+    def test_unpaired_audiobook_takes_the_author_beside_it(self):
+        epubs = [audio_entry("/l/Keller/a.epub", kind="epub", authors=["Keller, Timothy"],
+                             sort="Keller, Timothy"),
+                 audio_entry("/l/Keller/b.epub", kind="epub", authors=["Keller, Timothy", "X"])]
+        lone = audio_entry("/l/Keller/talk.mp3", authors=["Timothy J. Keller"])
+        folder = audio_entry("/l/Keller/sermons", authors=["Narrator"])
+        mixed = [audio_entry("/l/Mixed/a.epub", kind="epub", authors=["One"]),
+                 audio_entry("/l/Mixed/b.epub", kind="epub", authors=["Two"]),
+                 audio_entry("/l/Mixed/c.mp3", authors=["Tag"])]
+        alone = audio_entry("/l/Kids/episode", authors=["Kids"])
+        shown = {e["path"]: (i["authors"], i["sort"])
+                 for e, i, _ in library.arranged(epubs + [lone, folder, alone] + mixed)}
+        self.assertEqual(shown["/l/Keller/talk.mp3"], (["Keller, Timothy"], "Keller, Timothy"))
+        self.assertEqual(shown["/l/Keller/sermons"], (["Keller, Timothy"], "Keller, Timothy"))
+        self.assertEqual(shown["/l/Mixed/c.mp3"], (["Tag"], ""))
+        self.assertEqual(shown["/l/Kids/episode"], (["Kids"], ""))
+
+    def test_no_author_from_beside_in_a_library_folder(self):
+        entries = [audio_entry("/docs/prayer.epub", kind="epub", authors=["Keller, Timothy"]),
+                   audio_entry("/docs/potter.m4b", authors=["Rowling"]),
+                   audio_entry("/docs/sub/talk.mp3", authors=["Tag"]),
+                   audio_entry("/docs/sub/a.epub", kind="epub", authors=["Sub"])]
+        shown = {e["path"]: i["authors"] for e, i, _ in library.arranged(entries, ["/docs/"])}
+        self.assertEqual((shown["/docs/potter.m4b"], shown["/docs/sub/talk.mp3"]),
+                         (["Rowling"], ["Sub"]))

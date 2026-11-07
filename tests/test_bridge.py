@@ -8,6 +8,7 @@ from unittest import mock
 
 from bookfish import bridge
 
+from . import audiodata as ad
 from .helpers import TempDirTestCase, make_epub, mini_entries, write_files
 
 SMIL = """<?xml version="1.0"?>
@@ -178,10 +179,12 @@ class BridgeTest(TempDirTestCase):
         self.assertEqual(result["error"], "io")
 
 
-def entry(path, title, authors=(), sort="", series="", index=None, identifier="", audio=False):
+def entry(path, title, authors=(), sort="", series="", index=None, identifier="", audio=False,
+          kind="epub"):
     return {"path": path, "stamp": [1, 2], "info": {
         "identifier": identifier, "title": title, "authors": list(authors), "sort": sort,
-        "series": series, "index": index, "cover": None, "audio": audio, "broken": False}}
+        "series": series, "index": index, "cover": None, "audio": audio, "broken": False,
+        "kind": kind}}
 
 
 class LibraryViewTest(TempDirTestCase):
@@ -217,6 +220,36 @@ class LibraryViewTest(TempDirTestCase):
         ])
         self.assertEqual([(b["path"], b["duplicate"]) for b in view["books"]],
                          [("/card/b", False), ("/card/c", True), ("/home/c", True)])
+
+    def test_kinds_and_audiobooks(self):
+        epub = entry("/l/A/x.epub", "X", ["A"], identifier="i")
+        epub["info"]["cover"] = "OPS/c.jpg"
+        audio = entry("/l/A/x.m4b", "x (Unabridged)", ["Reader"], kind="audiobook")
+        audio["info"]["cover"] = "embedded.jpg"
+        lone = entry("/l/A/talk.mp3", "Talk", ["Tag Author"], kind="audiobook")
+        lone["info"]["cover"] = "embedded.png"
+        narrated = entry("/l/A/y.epub", "Y", ["A"], identifier="j", audio=True)
+        view = bridge.library_view([audio, lone, narrated, epub])
+        self.assertEqual([(b["path"], b["kind"], b["title"], b["author"], b["coverPath"], b["cover"])
+                          for b in view["books"]], [
+            ("/l/A/talk.mp3", "audiobook", "Talk", "A", "/l/A/talk.mp3", "embedded.png"),
+            ("/l/A/x.epub", "epub", "X", "A", "/l/A/x.epub", "OPS/c.jpg"),
+            ("/l/A/x.m4b", "audiobook", "X", "A", "/l/A/x.epub", "OPS/c.jpg"),
+            ("/l/A/y.epub", "readaloud", "Y", "A", "/l/A/y.epub", None)])
+        self.assertEqual(view["books"][1]["key"], view["books"][2]["key"])
+        # The EPUB has no cover: the audiobook shows its own.
+        epub["info"]["cover"] = None
+        book = [b for b in bridge.library_view([audio, epub])["books"] if b["kind"] == "audiobook"][0]
+        self.assertEqual((book["coverPath"], book["cover"]), ("/l/A/x.m4b", "embedded.jpg"))
+
+    def test_audiobook_cover(self):
+        folder = os.path.join(self.tmp, "book")
+        write_files(folder, {"01.mp3": ad.mp3([ad.apic(ad.PNG)])})
+        covers = os.path.join(self.tmp, "covers")
+        path = bridge.cover(folder, "embedded.png", "0123456789abcdef", covers)
+        self.assertEqual(path, os.path.join(covers, "0123456789abcdef.png"))
+        with open(path, "rb") as f:
+            self.assertEqual(f.read(), ad.PNG)
 
     def test_cover(self):
         epub = os.path.join(self.tmp, "b.epub")

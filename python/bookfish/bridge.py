@@ -90,7 +90,7 @@ def cached_library(cache_file, folders):
     """The books below folders as last scanned, at once; see library_view."""
     prefixes = tuple(os.path.join(folder, "") for folder in folders)
     return library_view([e for e in library.load_cached(cache_file)
-                         if e["path"].startswith(prefixes)])
+                         if e["path"].startswith(prefixes)], folders)
 
 
 def scan_library(folders, cache_file, covers_dir, serial):
@@ -120,34 +120,40 @@ def scan_now(folders, cache_file, covers_dir):
         return {"unchanged": True}
     library.prune_covers(covers_dir, {library.cover_name(e)
                                       for e in library.load_cached(cache_file)})
-    return library_view(entries)
+    return library_view(entries, folders)
 
 
-def library_view(entries):
+def library_view(entries, folders=()):
     """{books, authors} for the library pages.
 
     books are sorted by author, then series in order, then the other titles;
     authors lists each first author once with the number of books. Authors
     are told apart by their sort name ("Wilde, Oscar"), so "Oscar Wilde" in
     one book and "Wilde, Oscar" in another are one author; group is the key.
-    Books that a readaloud replaces are left out.
+    Books that a readaloud replaces are left out (see library.arranged).
+    kind is "epub", "readaloud" or "audiobook"; an audiobook read from an
+    EPUB beside it has its cover (if it has one), and coverPath and key are
+    the EPUB's. folders are the library folders (see library.arranged).
     """
-    entries = library.without_replaced(entries)
-    keys = [(library.normal_identifier(e["info"]["identifier"]), e["info"]["title"],
-             e["info"]["audio"]) for e in entries]
+    shown = library.arranged(entries, folders)
+    keys = [(library.normal_identifier(info["identifier"]), info["title"], info["audio"])
+            for _, info, _ in shown]
     copies = collections.Counter(keys)
     books = []
-    for entry, key in zip(entries, keys):
-        info = entry["info"]
+    for (entry, info, partner), key in zip(shown, keys):
+        kind = ("audiobook" if info["kind"] == "audiobook"
+                else "readaloud" if info["audio"] else "epub")
+        cover_entry = partner if partner is not None and partner["info"]["cover"] else entry
         author = info["authors"][0] if info["authors"] else ""
         sort = info["sort"] or author
         books.append({
-            "path": entry["path"], "key": library.cover_name(entry),
+            "path": entry["path"], "key": library.cover_name(cover_entry),
+            "kind": kind, "coverPath": cover_entry["path"],
             "title": info["title"], "author": author, "authors": "; ".join(info["authors"]),
             "coauthors": [_natural(name) for name in info["authors"][1:]],
             "sort": sort, "group": fold(sort), "letter": _letter(sort),
             "series": info["series"],
-            "index": info["index"], "cover": info["cover"], "audio": info["audio"],
+            "index": info["index"], "cover": cover_entry["info"]["cover"],
             "broken": info["broken"],
             "removable": entry["path"].startswith(_MEDIA_ROOT + "/"),
             # Several copies of one book: say where each is.
@@ -164,21 +170,22 @@ def library_view(entries):
     return {"books": books, "authors": authors}
 
 
-def request_cover(epub_path, cover_path, name, covers_dir):
+def request_cover(path, cover_path, name, covers_dir):
     """The file of the book's cover if it is extracted already, else "" and
     it is extracted in a thread, coming as the event ("cover", name, file);
-    file is "" if the book has no usable cover."""
+    file is "" if the book has no usable cover. path is the book's coverPath
+    and cover_path its cover (see library_view)."""
     target = _cover_target(cover_path, name, covers_dir)
     if not target:
         return ""
     if os.path.isfile(target):
         return target
-    _covers.submit(name, epub_path, cover_path, covers_dir)
+    _covers.submit(name, path, cover_path, covers_dir)
     return ""
 
 
-def _extract(name, epub_path, cover_path, covers_dir):
-    _send("cover", name, cover(epub_path, cover_path, name, covers_dir))
+def _extract(name, path, cover_path, covers_dir):
+    _send("cover", name, cover(path, cover_path, name, covers_dir))
 
 
 def _cover_target(cover_path, name, covers_dir):
@@ -186,9 +193,9 @@ def _cover_target(cover_path, name, covers_dir):
     return os.path.join(covers_dir, name + ext) if ext in _COVER_TYPES else ""
 
 
-def cover(epub_path, cover_path, name, covers_dir):
-    """The file of the book's cover in covers_dir, extracted on first use;
-    "" if there is none."""
+def cover(path, cover_path, name, covers_dir):
+    """The file of the book's cover in covers_dir, extracted on first use
+    from the EPUB or the audiobook at path; "" if there is none."""
     target = _cover_target(cover_path, name, covers_dir)
     if not target:
         return ""
@@ -198,7 +205,12 @@ def cover(epub_path, cover_path, name, covers_dir):
         os.makedirs(covers_dir, exist_ok=True)
     except OSError:
         return ""
-    return target if library.extract_cover(epub_path, cover_path, target) else ""
+    # Only files found as EPUBs end in .epub; a folder is an audiobook.
+    if path.lower().endswith(".epub") and not os.path.isdir(path):
+        found = library.extract_cover(path, cover_path, target)
+    else:
+        found = library.extract_audio_cover(path, cover_path, target)
+    return target if found else ""
 
 
 def recent_books(path):
@@ -232,9 +244,10 @@ def _letter(sort):
 def _order(book):
     # Authors not starting with a letter first, unknown ones last, so that
     # each section appears once.
+    # The book before its audiobook.
     return (book["group"] == "", book["letter"] != "#", book["group"], book["series"] == "",
             fold(book["series"]), book["index"] if book["index"] is not None else math.inf,
-            fold(book["title"]), book["path"])
+            fold(book["title"]), book["kind"] == "audiobook", book["path"])
 
 
 def open_book(epub_path, cache_dir):

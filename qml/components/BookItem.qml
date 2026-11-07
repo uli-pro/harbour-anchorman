@@ -42,14 +42,27 @@ ListItem {
             color: item.highlighted ? Theme.highlightColor : Theme.primaryColor
         }
 
+        // A book to read, to hear, or both: a readaloud.
         Row {
             width: parent.width
             spacing: Theme.paddingSmall
 
             Icon {
+                id: bookIcon
+
+                visible: item.book !== null && item.book !== undefined && item.book.kind !== "audiobook"
+                width: Theme.iconSizeExtraSmall
+                height: width
+                sourceSize.width: width
+                sourceSize.height: height
+                anchors.verticalCenter: parent.verticalCenter
+                source: "image://theme/icon-m-document"
+            }
+
+            Icon {
                 id: audioIcon
 
-                visible: item.book && item.book.audio
+                visible: item.book !== null && item.book !== undefined && item.book.kind !== "epub"
                 width: Theme.iconSizeExtraSmall
                 height: width
                 sourceSize.width: width
@@ -59,7 +72,8 @@ ListItem {
             }
 
             Label {
-                width: parent.width - (audioIcon.visible ? audioIcon.width + parent.spacing : 0)
+                width: parent.width - (bookIcon.visible ? bookIcon.width + parent.spacing : 0)
+                       - (audioIcon.visible ? audioIcon.width + parent.spacing : 0)
                 text: item.detail
                 // Text from the book, never markup.
                 textFormat: Text.PlainText

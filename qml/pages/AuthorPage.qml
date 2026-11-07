@@ -54,7 +54,7 @@ Page {
         delegate: BookItem {
             book: page.books[model.bookIndex]
             detail: page.detail(book)
-            onClicked: page.library.openBook(book.path, false)
+            onClicked: page.library.openEntry(book)
         }
 
         VerticalScrollDecorator { }
