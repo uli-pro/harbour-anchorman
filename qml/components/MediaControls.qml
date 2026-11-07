@@ -2,7 +2,8 @@ import QtQuick 2.0
 import Amber.Mpris 1.0
 
 // Controls on the lock screen, in the notifications and on headphones,
-// for the open book. The Audio permission lets the app own the name.
+// for the open book: a ReaderPage or an AudiobookPage. The Audio
+// permission lets the app own the name.
 MprisPlayer {
     readonly property var reader: app.reader
 
@@ -23,16 +24,21 @@ MprisPlayer {
     canPause: reader !== null && reader.hasAudio
     canGoNext: reader !== null && reader.hasAudio
     canGoPrevious: reader !== null && reader.hasAudio
-    // The narration is a sequence of sentences across several files, not
-    // one track with a position.
+    // No position: the lock screen shows none (tried on the device), and a
+    // readaloud is a sequence of sentences across several files.
     canSeek: false
     playbackStatus: reader === null ? Mpris.Stopped
                   : reader.playing ? Mpris.Playing : Mpris.Paused
 
+    // The lock screen shows only the title and the artist (Sailfish.Media
+    // MprisManagerControls): the book above its chapter. Album and album
+    // artist for players that show them.
     metaData {
         title: reader !== null ? plain(reader.book.title) : ""
         // A list would be shown as "A,B".
-        contributingArtist: reader !== null ? [plain(reader.book.authors.join("; "))] : []
+        contributingArtist: reader !== null ? [plain(reader.chapterTitle)] : []
+        albumTitle: reader !== null ? plain(reader.book.title) : ""
+        albumArtist: reader !== null ? [plain(reader.book.authors.join("; "))] : []
         artUrl: reader !== null ? reader.coverUrl : ""
     }
 
@@ -48,6 +54,7 @@ MprisPlayer {
         else
             reader.play()
     }
-    onNextRequested: if (reader) reader.nextSentence()
-    onPreviousRequested: if (reader) reader.previousSentence()
+    // A sentence in a readaloud, 30 s in an audiobook.
+    onNextRequested: if (reader) reader.forward()
+    onPreviousRequested: if (reader) reader.back()
 }

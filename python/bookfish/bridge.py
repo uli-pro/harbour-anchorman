@@ -16,7 +16,7 @@ import time
 import traceback
 import unicodedata
 
-from . import cache, history as history_store, library, positions
+from . import audiobook, cache, history as history_store, library, positions
 from .errors import EpubError
 from .overlay import read_overlay
 from .package import read_package, text_length
@@ -214,7 +214,7 @@ def cover(path, cover_path, name, covers_dir):
 
 
 def recent_books(path):
-    """The EPUB files opened last, newest first."""
+    """The books opened last, newest first."""
     return positions.load_recent(path)
 
 
@@ -278,6 +278,80 @@ def open_book(epub_path, cache_dir):
                  "spine": spine_index.get(entry.path, -1)}
                 for entry in book.toc],
     }
+
+
+def open_audiobook(path, library_cache, folders, covers_dir, audio_cache):
+    """The audiobook at path (file or folder) for the player page: its
+    chapters as audiobook.open_audiobook gives them, and title, authors and
+    cover as the library shows them (an EPUB beside it gives its own).
+    folders are the library folders, [] if not known yet (the app is
+    starting); then every book of the cache counts. cover is a file or "".
+
+    A folder not read yet comes with estimated chapters ("complete" false);
+    the files are read in a thread, and the full chapters come as the event
+    ("audiobook", path, result).
+    """
+    try:
+        book = audiobook.open_audiobook(path, audio_cache)
+    except EpubError as e:
+        return _error(e.code, e.detail)
+    except OSError as e:
+        return _error("io", str(e))
+    except Exception as e:
+        # The library waits for an answer.
+        traceback.print_exc()
+        return _error("internal", repr(e))
+    entry = next((b for b in library_view(library.load_cached(library_cache), folders)["books"]
+                  if b["path"] == path), None)
+    if entry is not None:
+        title = entry["title"]
+        authors = [a for a in entry["authors"].split("; ") if a]
+        cover_file = cover(entry["coverPath"], entry["cover"], entry["key"], covers_dir)
+    else:
+        # Not in the library (yet): the tags tell.
+        info = _tags_info(path)
+        title, authors, cover_file = info["title"], info["authors"], ""
+    book.update(kind="audiobook", path=path, title=title, authors=authors, cover=cover_file,
+                key=_position_key("audio:" + os.path.basename(path)))
+    if not book["complete"]:
+        _audiobooks.submit(path, audio_cache)
+    return book
+
+
+def _tags_info(path):
+    files = library.audio_files(path) if os.path.isdir(path) else [path]
+    name = os.path.basename(path)
+    if not os.path.isdir(path):
+        name = os.path.splitext(name)[0]
+    try:
+        return library.audio_info(library.BookFile(path, name, "audiobook", tuple(files)))
+    except Exception:
+        return library.broken_info(path, "audiobook")
+
+
+def _read_audiobook(path, audio_cache):
+    try:
+        result = audiobook.read_folder(path, audio_cache)
+    except EpubError as e:
+        result = _error(e.code, e.detail)
+    except OSError as e:
+        result = _error("io", str(e))
+    except Exception as e:
+        traceback.print_exc()
+        result = _error("internal", repr(e))
+    _send("audiobook", path, result)
+
+
+def is_audiobook(path):
+    """Whether the book at path, as the library found it, is an audiobook:
+    the library lists only EPUB files, audio files and audio folders."""
+    return os.path.isdir(path) or not path.lower().endswith(".epub")
+
+
+def audio_history(path, key):
+    """The sessions of listening to the audiobook key, newest first (see
+    history.sessions); each entry is {time, kind, spine, ms}."""
+    return {"sessions": history_store.sessions(history_store.load(path, key))}
 
 
 def chapter_lengths(root, paths):
@@ -378,8 +452,8 @@ def search(root, query, here, serial):
 
 def add_history(path, key, kind, place):
     """Note in the history that kind happened at place of the book key now:
-    {spine, id} when listening, {spine, offset} when reading; see
-    history.add."""
+    {spine, id} when listening to a readaloud, {spine, ms} to an audiobook,
+    {spine, offset} when reading; see history.add."""
     try:
         history_store.add(path, key, kind, place, int(time.time()))
     except ValueError as e:
@@ -464,3 +538,4 @@ def _error(code, detail):
 _scanner = Worker(_scan)
 _covers = Worker(_extract, _MAX_WAITING_COVERS)
 _searcher = Worker(_search)
+_audiobooks = Worker(_read_audiobook)

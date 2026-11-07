@@ -136,25 +136,51 @@ Page {
 
     // A book of the library view.
     function openEntry(book) {
-        if (book.kind === "audiobook") {
-            //: Shown when an audiobook is opened before the player exists
-            app.showError(qsTr("Audiobooks can be played in a later version."))
-            return
-        }
         openBook(book.path, false)
     }
 
     // resuming: the app is starting; no message if the book cannot be opened.
     function openBook(path, resuming) {
         opening = true
+        py.call("bookfish.bridge.is_audiobook", [path], function (audio) {
+            if (audio)
+                openAudiobook(path, resuming)
+            else
+                openEpub(path, resuming)
+        })
+    }
+
+    function openFailed(path, resuming, result) {
+        console.warn("Cannot open", path, result.error, result.detail)
+        if (!resuming)
+            app.showError(app.errorText(result.error))
+        else if (!loaded)
+            showLibrary()
+    }
+
+    function openAudiobook(path, resuming) {
+        // Starting, the folders are not known yet; then all books of the
+        // cache count.
+        var folders = app.libraryFolder ? [app.libraryFolder] : defaultFolders
+        py.call("bookfish.bridge.open_audiobook",
+                [path, app.libraryCache, folders, app.coversFolder, app.audiobooksFolder],
+                function (book) {
+            opening = false
+            if (book.error) {
+                openFailed(path, resuming, book)
+                return
+            }
+            py.call("bookfish.bridge.save_last_book", [app.positionsFile, path])
+            pageStack.push(Qt.resolvedUrl("AudiobookPage.qml"), { book: book },
+                           resuming ? PageStackAction.Immediate : PageStackAction.Animated)
+        })
+    }
+
+    function openEpub(path, resuming) {
         py.call("bookfish.bridge.open_book", [path, app.cacheFolder], function (book) {
             opening = false
             if (book.error) {
-                console.warn("Cannot open", path, book.error, book.detail)
-                if (!resuming)
-                    app.showError(app.errorText(book.error))
-                else if (!loaded)
-                    showLibrary()
+                openFailed(path, resuming, book)
                 return
             }
             py.call("bookfish.bridge.save_last_book", [app.positionsFile, path])

@@ -3,7 +3,7 @@ import Sailfish.Silica 1.0
 
 // Search in the open book: every paragraph holding all words typed. With
 // nothing typed, the history: where reading and listening started, went on
-// and ended, newest first.
+// and ended, newest first. For an audiobook only the history.
 Page {
     id: page
 
@@ -22,6 +22,9 @@ Page {
     property string searchedQuery: ""
     // The entries of the history shown, in the order of the rows.
     property var places: []
+    // An audiobook's chapters, [{title, begin}]; null for an EPUB.
+    property var audioChapters: null
+    readonly property bool audio: audioChapters !== null
 
     // The hits and the one chosen, for going from hit to hit in the book.
     signal selected(var hits, int index, string query)
@@ -63,11 +66,27 @@ Page {
             for (var j = 0; j < entries.length; ++j) {
                 var entry = entries[j]
                 var info = timeText(entry.time) + " · " + kindText(entry.kind)
-                rows.append(row("entry", info, escaped(entry.line), chapterName(entry), list.length))
+                if (audio)
+                    rows.append(row("entry", info, escaped(audioPlace(entry)), "", list.length))
+                else
+                    rows.append(row("entry", info, escaped(entry.line), chapterName(entry), list.length))
                 list.push(entry)
             }
         }
         places = list
+    }
+
+    // "Chapter 12 · 23:45": the time in the chapter.
+    function audioPlace(entry) {
+        var chapter = audioChapters[entry.spine]
+        if (!chapter)
+            return chapterName({ spine: entry.spine })
+        var s = Math.max(0, Math.floor((entry.ms - chapter.begin) / 1000))
+        var h = Math.floor(s / 3600)
+        var m = Math.floor(s / 60) % 60
+        s = s % 60
+        var time = (h > 0 ? h + ":" + (m < 10 ? "0" : "") : "") + m + ":" + (s < 10 ? "0" : "") + s
+        return chapter.title + " · " + time
     }
 
     function row(type, info, html, chapter, hit) {
@@ -154,6 +173,14 @@ Page {
     }
 
     function search() {
+        if (audio) {
+            searching = true
+            py.call("bookfish.bridge.audio_history", [app.historyFile, bookKey], function (result) {
+                searching = false
+                fillHistory(result.sessions)
+            })
+            return
+        }
         var text = query.trim()
         serial = ++app.searchSerial
         if (text.length < 2) {
@@ -169,6 +196,10 @@ Page {
     }
 
     Component.onCompleted: {
+        if (audio) {
+            search()
+            return
+        }
         py.call("bookfish.bridge.prepare_search", [root])
         // A text set in the field does not change it when empty.
         if (initialQuery.trim().length < 2)
@@ -177,7 +208,8 @@ Page {
     // The keyboard only when there is nothing else to see: it would push
     // the history out of sight.
     onStatusChanged: {
-        if (status === PageStatus.Active && query === "" && !searching && places.length === 0)
+        if (status === PageStatus.Active && !audio && query === "" && !searching
+                && places.length === 0)
             listView.headerItem.field.forceActiveFocus()
     }
 
@@ -235,6 +267,7 @@ Page {
             // Search and history, each with a heading instead of one for
             // the page.
             Column {
+                visible: !page.audio
                 x: Theme.horizontalPageMargin
                 width: parent.width - 2 * x
 
@@ -265,6 +298,7 @@ Page {
 
             SearchField {
                 id: field
+                visible: !page.audio
                 width: parent.width
                 //: Placeholder of the search field
                 placeholderText: qsTr("Words in the book")
@@ -314,8 +348,11 @@ Page {
                     truncationMode: TruncationMode.Fade
                     font.pixelSize: Theme.fontSizeExtraSmall
                     color: Theme.secondaryHighlightColor
-                    //: Below the heading of the history
-                    text: qsTr("Newest first – tap to go there")
+                    text: page.audio
+                          //: Below the heading of an audiobook's history
+                          ? qsTr("Newest first – tap to listen there")
+                          //: Below the heading of the history
+                          : qsTr("Newest first – tap to go there")
                 }
             }
         }
@@ -405,7 +442,10 @@ Page {
 
         ViewPlaceholder {
             enabled: !searching && rows.count === 0
-            text: query.trim().length < 2
+            text: page.audio
+                  //: An audiobook not listened to yet
+                  ? qsTr("No history yet")
+                  : query.trim().length < 2
                   //: Hint on the empty search page
                   ? qsTr("Type words from the book")
                   //: The search found nothing

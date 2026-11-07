@@ -50,6 +50,9 @@ Item {
     // Paused at the end of a chapter, see holdAtChapterEnd.
     signal held()
 
+    // ms, as GStreamer reports it for the file loaded; not above 0 while
+    // not known.
+    readonly property int fileDuration: audio.duration
     property string loadedPath: ""
     property int pendingSeek: -1
     property int nextMark: 0
@@ -63,10 +66,11 @@ Item {
     property bool loading: false
     property bool stoppedOutside: false
 
-    // In ms within the audio file; read when needed, the property binding
-    // of Audio is only updated once a second.
+    // In ms within the audio file, also while a seek waits for the file;
+    // read when needed, the property binding of Audio is only updated once
+    // a second.
     function currentPosition() {
-        return audio.position
+        return pendingSeek >= 0 ? pendingSeek : audio.position
     }
 
     function fileUrl(path) {
@@ -95,12 +99,14 @@ Item {
             audio.play()
     }
 
-    function start(chapterIndex, list, i, offset) {
+    // paused: only to the place, playing on with resume().
+    function start(chapterIndex, list, i, offset, paused) {
         chapter = chapterIndex
         clips = list
         // Before playing: the page notes where listening starts.
         index = i
-        playing = true
+        if (!paused)
+            playing = true
         jump(i, offset || 0)
     }
 

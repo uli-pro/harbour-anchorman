@@ -17,6 +17,7 @@ ApplicationWindow {
     readonly property string historyFile: StandardPaths.data + "/history.json"
     readonly property string libraryCache: StandardPaths.cache + "/library.json"
     readonly property string coversFolder: StandardPaths.cache + "/covers"
+    readonly property string audiobooksFolder: StandardPaths.cache + "/audiobooks"
     // Text size in screen pixels, like FBReader; the frame script converts
     // it to CSS pixels.
     readonly property int minFontSize: 20
@@ -59,9 +60,12 @@ ApplicationWindow {
     signal searchFinished(int serial, var result)
     // The listening history of a book, see FindPage.
     signal historyFinished(int serial, var result)
+    // The files of an audiobook folder read, see AudiobookPage.
+    signal audiobookRead(string path, var result)
     property int searchSerial: 0
 
-    // The open ReaderPage, for the cover's play button.
+    // The open ReaderPage or AudiobookPage, for the cover's play button and
+    // the lock screen.
     property var reader: null
 
     function setLibraryFolder(folder) {
@@ -117,6 +121,8 @@ ApplicationWindow {
             return qsTr("This book is protected by DRM and cannot be opened.")
         case "io":
             return qsTr("The book could not be read.")
+        case "not_audio":
+            return qsTr("This audiobook cannot be played.")
         default:
             return qsTr("This book is damaged.")
         }
@@ -195,6 +201,7 @@ ApplicationWindow {
                 setHandler("cover", app.coverReady)
                 setHandler("search", app.searchFinished)
                 setHandler("history", app.historyFinished)
+                setHandler("audiobook", app.audiobookRead)
                 app.pythonReady = true
             })
         }

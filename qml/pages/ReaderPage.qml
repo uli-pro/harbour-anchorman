@@ -80,6 +80,8 @@ WebViewPage {
     readonly property bool hasAudio: book.spine.some(function (item) { return !!item.overlay })
     // For the lock screen and headphone controls.
     readonly property string coverUrl: book.cover ? player.fileUrl(book.cover) : ""
+    // The chapter heard, or read; for the lock screen.
+    readonly property string chapterTitle: tocTitle(player.active ? player.chapter : chapter)
     property double savedAt: 0
     // Left for the library: the page is going, and must neither lay out
     // nor save again (it would save the top of the page over the sentence).
@@ -619,14 +621,15 @@ WebViewPage {
                        { timer: sleepTimer, chapterLeft: player.chapterLeft() })
     }
 
+    // Next and previous sentence, from the lock screen and the headphones.
     // Only while listening: paused and turned away, a sentence would pull
     // the page back.
-    function nextSentence() {
+    function forward() {
         if (barShown)
             player.next()
     }
 
-    function previousSentence() {
+    function back() {
         if (barShown)
             player.previous()
     }
@@ -664,6 +667,16 @@ WebViewPage {
         } else {
             player.continueWith(upcoming.chapter, upcoming.clips)
         }
+    }
+
+    // The title of the first entry of the contents in chapter index.
+    function tocTitle(index) {
+        for (var i = 0; i < book.toc.length; ++i) {
+            if (book.toc[i].spine === index)
+                return book.toc[i].title
+        }
+        //: Chapter without a title in the contents, e.g. "Chapter 12"
+        return index >= 0 ? qsTr("Chapter %1").arg(index + 1) : ""
     }
 
     function nextLinear(from, delta) {
