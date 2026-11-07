@@ -1,7 +1,7 @@
 import os
 
-from anchorman.errors import EpubError
-from anchorman.package import (BookInfo, SpineItem, TocEntry, read_info, read_nav, read_ncx,
+from bookfish.errors import EpubError
+from bookfish.package import (BookInfo, SpineItem, TocEntry, read_info, read_nav, read_ncx,
                                read_package, text_length)
 
 from .helpers import MINI_DIR, TempDirTestCase, write_files

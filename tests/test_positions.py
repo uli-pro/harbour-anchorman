@@ -1,7 +1,7 @@
 import json
 import os
 
-from anchorman import positions
+from bookfish import positions
 
 from .helpers import TempDirTestCase
 

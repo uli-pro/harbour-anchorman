@@ -12,9 +12,9 @@ MprisPlayer {
         return String(text).replace(/</g, "\u2039")
     }
 
-    serviceName: "anchorman"
-    identity: "Anchorman"
-    desktopEntry: "harbour-anchorman"
+    serviceName: "bookfish"
+    identity: "Bookfish"
+    desktopEntry: "harbour-bookfish"
 
     // Fixed: Amber does not pass a later change of CanControl on, and false
     // also turns off CanPlay and CanPause (seen on the device).

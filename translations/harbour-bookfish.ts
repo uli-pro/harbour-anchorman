@@ -51,7 +51,7 @@
     <name>CoverPage</name>
     <message>
         <location filename="../qml/cover/CoverPage.qml" line="8"/>
-        <source>Anchorman</source>
+        <source>Bookfish</source>
         <extracomment>Application name, usually not translated</extracomment>
         <translation type="unfinished"></translation>
     </message>
@@ -339,44 +339,44 @@
     </message>
 </context>
 <context>
-    <name>harbour-anchorman</name>
+    <name>harbour-bookfish</name>
     <message>
-        <location filename="../qml/harbour-anchorman.qml" line="105"/>
+        <location filename="../qml/harbour-bookfish.qml" line="105"/>
         <source>This file is not an EPUB book.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-anchorman.qml" line="108"/>
+        <location filename="../qml/harbour-bookfish.qml" line="108"/>
         <source>This book is too large or damaged.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-anchorman.qml" line="110"/>
+        <location filename="../qml/harbour-bookfish.qml" line="110"/>
         <source>Not enough free space to open this book.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-anchorman.qml" line="112"/>
+        <location filename="../qml/harbour-bookfish.qml" line="112"/>
         <source>This book contains unsafe file names and was not opened.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-anchorman.qml" line="114"/>
+        <location filename="../qml/harbour-bookfish.qml" line="114"/>
         <source>This book is protected by DRM and cannot be opened.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-anchorman.qml" line="116"/>
+        <location filename="../qml/harbour-bookfish.qml" line="116"/>
         <source>The book could not be read.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-anchorman.qml" line="118"/>
+        <location filename="../qml/harbour-bookfish.qml" line="118"/>
         <source>This book is damaged.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/harbour-anchorman.qml" line="200"/>
+        <location filename="../qml/harbour-bookfish.qml" line="200"/>
         <source>Internal error. Please report it with the log.</source>
         <translation type="unfinished"></translation>
     </message>

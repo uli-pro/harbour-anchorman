@@ -5,7 +5,7 @@ CoverBackground {
     Label {
         anchors.centerIn: parent
         //: Application name, usually not translated
-        text: qsTr("Anchorman")
+        text: qsTr("Bookfish")
     }
 
     CoverActionList {

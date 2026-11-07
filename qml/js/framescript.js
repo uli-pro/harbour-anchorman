@@ -36,10 +36,10 @@ addEventListener("DOMContentLoaded", function (event) {
 // Wait for "load", not DOMContentLoaded: images change the number of pages.
 addEventListener("load", function (event) {
     if (event.target === content.document)
-        sendAsyncMessage("anchorman:loaded", { url: content.document.URL })
+        sendAsyncMessage("bookfish:loaded", { url: content.document.URL })
 }, true)
 
-addMessageListener("anchorman:layout", function (message) {
+addMessageListener("bookfish:layout", function (message) {
     var o = message.data
     var doc = content.document
     var width = content.innerWidth
@@ -99,7 +99,7 @@ addMessageListener("anchorman:layout", function (message) {
         // Our own mark for the sentence spoken, and for the one heard last
         // where listening goes on: the book's style for its active class is
         // made for white pages.
-        "body .anchorman-active, body .anchorman-resume { background-color: " + o.markColor + "; }")
+        "body .bookfish-active, body .bookfish-resume { background-color: " + o.markColor + "; }")
     normalize(doc, o)
 
     var sentences = []
@@ -116,10 +116,10 @@ addMessageListener("anchorman:layout", function (message) {
     var resume = current() ? state.resume : null
     var found = current() ? state.found : null
     if (resume)
-        resume.classList.remove("anchorman-resume")
+        resume.classList.remove("bookfish-resume")
     resume = o.resume ? doc.getElementById(o.resume) : null
     if (resume)
-        resume.classList.add("anchorman-resume")
+        resume.classList.add("bookfish-resume")
     state = {
         serial: o.serial,
         doc: doc,
@@ -145,7 +145,7 @@ addMessageListener("anchorman:layout", function (message) {
         highlight(o.highlight)
     } else if (state.active) {
         // Playback has stopped.
-        state.active.classList.remove("anchorman-active")
+        state.active.classList.remove("bookfish-active")
         state.active = null
     }
     awaitPaint(o.serial)
@@ -157,11 +157,11 @@ addMessageListener("anchorman:layout", function (message) {
 function highlight(id) {
     var el = state.doc.getElementById(id)
     if (state.active && state.active !== el)
-        state.active.classList.remove("anchorman-active")
+        state.active.classList.remove("bookfish-active")
     state.active = el
     var splits = []
     if (el) {
-        el.classList.add("anchorman-active")
+        el.classList.add("bookfish-active")
         var rects = boxes(el)
         var total = 0
         for (var i = 0; i < rects.length; ++i)
@@ -180,15 +180,15 @@ function highlight(id) {
         if (first !== currentPage())
             showPage(first)
     }
-    sendAsyncMessage("anchorman:highlighted", { serial: state.serial, id: id, splits: splits })
+    sendAsyncMessage("bookfish:highlighted", { serial: state.serial, id: id, splits: splits })
 }
 
-addMessageListener("anchorman:highlight", function (message) {
+addMessageListener("bookfish:highlight", function (message) {
     if (current())
         highlight(message.data.id)
 })
 
-addMessageListener("anchorman:show", function (message) {
+addMessageListener("bookfish:show", function (message) {
     if (current() && message.data.page !== currentPage())
         showPage(message.data.page)
 })
@@ -197,20 +197,20 @@ addMessageListener("anchorman:show", function (message) {
 // there, "" if none.
 // Not named like the answer: the WebView hands a frame script's own
 // messages back to its listeners, which made the answer ask again.
-addMessageListener("anchorman:hitTest", function (message) {
+addMessageListener("bookfish:hitTest", function (message) {
     if (!current())
         return
     var el = state.doc.elementFromPoint(message.data.x * content.innerWidth,
                                         message.data.y * content.innerHeight)
     while (el && !(el.id && state.isSentence[el.id]))
         el = el.parentElement
-    sendAsyncMessage("anchorman:hit", { serial: state.serial, id: el ? el.id : "" })
+    sendAsyncMessage("bookfish:hit", { serial: state.serial, id: el ? el.id : "" })
 })
 
 // Where playback starts on this page: the preferred sentence (the one
 // paused at) if it is on the page, else the topmost sentence, also one cut
 // off at the top, else the first one after the page. "" if there is none.
-addMessageListener("anchorman:startSentence", function (message) {
+addMessageListener("bookfish:startSentence", function (message) {
     if (!current())
         return
     var page = currentPage()
@@ -223,7 +223,7 @@ addMessageListener("anchorman:startSentence", function (message) {
         if (rects.length && pageOfBox(rects[rects.length - 1]) >= page)
             id = state.sentences[i].id
     }
-    sendAsyncMessage("anchorman:start", { serial: state.serial, id: id })
+    sendAsyncMessage("bookfish:start", { serial: state.serial, id: id })
 })
 
 function important(css) {
@@ -417,7 +417,7 @@ addEventListener("MozAfterPaint", function (event) {
         return
     if (paintAfter >= 0 && !(event.transactionId > paintAfter))
         return
-    sendAsyncMessage("anchorman:painted", { serial: paintSerial })
+    sendAsyncMessage("bookfish:painted", { serial: paintSerial })
     paintSerial = -1
 }, true)
 
@@ -431,7 +431,7 @@ function awaitPaint(serial) {
 }
 
 // A jump within the chapter: what was marked belongs to the place left.
-addMessageListener("anchorman:goto", function (message) {
+addMessageListener("bookfish:goto", function (message) {
     if (!current())
         return
     if (!message.data.target.find)
@@ -439,13 +439,13 @@ addMessageListener("anchorman:goto", function (message) {
     go(message.data.target)
 })
 
-addMessageListener("anchorman:turn", function (message) {
+addMessageListener("bookfish:turn", function (message) {
     if (!current())
         return
     unmark()
     var page = currentPage() + message.data.delta
     if (page < 0 || page >= pageCount()) {
-        sendAsyncMessage("anchorman:edge", { serial: state.serial, delta: message.data.delta })
+        sendAsyncMessage("bookfish:edge", { serial: state.serial, delta: message.data.delta })
         return
     }
     showPage(page)
@@ -467,12 +467,12 @@ function unmark() {
         content.getSelection().removeAllRanges()
     } catch (e) { }
     if (state.resume) {
-        state.resume.classList.remove("anchorman-resume")
+        state.resume.classList.remove("bookfish-resume")
         state.resume = null
     }
 }
 
-addMessageListener("anchorman:unmark", function (message) {
+addMessageListener("bookfish:unmark", function (message) {
     if (current())
         unmark()
 })
@@ -487,7 +487,7 @@ function remark() {
     selection.addRange(state.found)
 }
 
-addMessageListener("anchorman:remark", function (message) {
+addMessageListener("bookfish:remark", function (message) {
     if (current())
         remark()
 })
@@ -552,7 +552,7 @@ function goFound(find) {
     var range = findRange(find)
     var id = ""
     if (state.resume) {
-        state.resume.classList.remove("anchorman-resume")
+        state.resume.classList.remove("bookfish-resume")
         state.resume = null
     }
     if (range) {
@@ -569,7 +569,7 @@ function goFound(find) {
         content.getSelection().removeAllRanges()
         showPage(0)
     }
-    sendAsyncMessage("anchorman:found", { serial: state.serial, id: id })
+    sendAsyncMessage("bookfish:found", { serial: state.serial, id: id })
 }
 
 // target: { id, fraction } (either may be missing), { end: true } or
@@ -593,7 +593,7 @@ function showPage(page) {
     state.scroller.scrollLeft = Math.max(0, Math.min(pages - 1, page)) * state.width
     // Report where the view really is, should the scroll be clamped.
     page = currentPage()
-    sendAsyncMessage("anchorman:page", {
+    sendAsyncMessage("bookfish:page", {
         serial: state.serial,
         page: page,
         pages: pages,

@@ -1,10 +1,10 @@
-Name:       harbour-anchorman
-Summary:    Read and listen to EPUB 3 readalouds
+Name:       harbour-bookfish
+Summary:    Read e-books and listen to audiobooks and readalouds
 Version:    0.0.1
 Release:    1
-License:    GPL-3.0-or-later
+License:    MIT
 BuildArch:  noarch
-URL:        https://github.com/uli-pro/harbour-anchorman
+URL:        https://github.com/uli-pro/harbour-bookfish
 Source0:    %{name}-%{version}.tar.bz2
 Requires:   sailfishsilica-qt5 >= 0.10.9
 Requires:   libsailfishapp-launcher
@@ -20,7 +20,8 @@ BuildRequires:  qt5-qttools-linguist
 BuildRequires:  desktop-file-utils
 
 %description
-Read EPUB 3 books with synchronized narration (Media Overlays) and
+Read e-books and listen to audiobooks and readalouds. Readalouds are
+EPUB 3 books with synchronized narration (Media Overlays), so you can
 continue listening at the sentence where you stopped reading.
 
 %prep

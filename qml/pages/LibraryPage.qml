@@ -27,7 +27,7 @@ Page {
             return
         resumed = true
         py.setHandler("library", page.scanned)
-        py.call("anchorman.bridge.load_last_book", [app.positionsFile], function (path) {
+        py.call("bookfish.bridge.load_last_book", [app.positionsFile], function (path) {
             if (path)
                 openBook(path, true)
             else
@@ -40,16 +40,16 @@ Page {
     function showLibrary() {
         var serial = ++scanSerial
         scanning = true
-        py.call("anchorman.bridge.default_folders", [StandardPaths.documents], function (folders) {
+        py.call("bookfish.bridge.default_folders", [StandardPaths.documents], function (folders) {
             if (serial !== scanSerial)
                 return
             defaultFolders = folders
             var chosen = app.libraryFolder ? [app.libraryFolder] : folders
-            py.call("anchorman.bridge.cached_library", [app.libraryCache, chosen], function (view) {
+            py.call("bookfish.bridge.cached_library", [app.libraryCache, chosen], function (view) {
                 if (serial !== scanSerial)
                     return
                 setLibrary(view)
-                py.call("anchorman.bridge.scan_library",
+                py.call("bookfish.bridge.scan_library",
                         [chosen, app.libraryCache, app.coversFolder, serial])
             })
         })
@@ -78,7 +78,7 @@ Page {
     }
 
     function updateRecent() {
-        py.call("anchorman.bridge.recent_books", [app.positionsFile], function (paths) {
+        py.call("bookfish.bridge.recent_books", [app.positionsFile], function (paths) {
             var found = []
             for (var i = 0; i < paths.length; ++i) {
                 for (var j = 0; j < books.length; ++j) {
@@ -101,7 +101,7 @@ Page {
             return
         }
         var asked = filter
-        py.call("anchorman.bridge.fold", [filter], function (folded) {
+        py.call("bookfish.bridge.fold", [filter], function (folded) {
             if (asked === filter)
                 showRows(folded.split(/\s+/).filter(function (w) { return w !== "" }))
         })
@@ -137,7 +137,7 @@ Page {
     // resuming: the app is starting; no message if the book cannot be opened.
     function openBook(path, resuming) {
         opening = true
-        py.call("anchorman.bridge.open_book", [path, app.cacheFolder], function (book) {
+        py.call("bookfish.bridge.open_book", [path, app.cacheFolder], function (book) {
             opening = false
             if (book.error) {
                 console.warn("Cannot open", path, book.error, book.detail)
@@ -147,7 +147,7 @@ Page {
                     showLibrary()
                 return
             }
-            py.call("anchorman.bridge.save_last_book", [app.positionsFile, path])
+            py.call("bookfish.bridge.save_last_book", [app.positionsFile, path])
             pageStack.push(Qt.resolvedUrl("ReaderPage.qml"), { book: book },
                            resuming ? PageStackAction.Immediate : PageStackAction.Animated)
         })

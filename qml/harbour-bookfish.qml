@@ -135,49 +135,49 @@ ApplicationWindow {
 
     ConfigurationValue {
         id: fontSizeSetting
-        key: "/apps/harbour-anchorman/fontSize"
+        key: "/apps/harbour-bookfish/fontSize"
         defaultValue: 36
     }
 
     ConfigurationValue {
         id: libraryFolderSetting
-        key: "/apps/harbour-anchorman/libraryFolder"
+        key: "/apps/harbour-bookfish/libraryFolder"
         defaultValue: ""
     }
 
     ConfigurationValue {
         id: fontFamilySetting
-        key: "/apps/harbour-anchorman/fontFamily"
+        key: "/apps/harbour-bookfish/fontFamily"
         defaultValue: "sans"
     }
 
     ConfigurationValue {
         id: pageColorsSetting
-        key: "/apps/harbour-anchorman/pageColors"
+        key: "/apps/harbour-bookfish/pageColors"
         defaultValue: ""
     }
 
     ConfigurationValue {
         id: lineHeightSetting
-        key: "/apps/harbour-anchorman/lineHeight"
+        key: "/apps/harbour-bookfish/lineHeight"
         defaultValue: 1.3
     }
 
     ConfigurationValue {
         id: paragraphSpacingSetting
-        key: "/apps/harbour-anchorman/paragraphSpacing"
+        key: "/apps/harbour-bookfish/paragraphSpacing"
         defaultValue: 0.5
     }
 
     ConfigurationValue {
         id: textScaleSetting
-        key: "/apps/harbour-anchorman/textScale"
+        key: "/apps/harbour-bookfish/textScale"
         defaultValue: 0
     }
 
     ConfigurationValue {
         id: playbackRateSetting
-        key: "/apps/harbour-anchorman/playbackRate"
+        key: "/apps/harbour-bookfish/playbackRate"
         defaultValue: 1
     }
 
@@ -188,7 +188,7 @@ ApplicationWindow {
 
         Component.onCompleted: {
             addImportPath(Qt.resolvedUrl("../python"))
-            importModule("anchorman.bridge", function () {
+            importModule("bookfish.bridge", function () {
                 setHandler("cover", app.coverReady)
                 setHandler("search", app.searchFinished)
                 app.pythonReady = true
