@@ -230,71 +230,78 @@
 <context>
     <name>LibraryPage</name>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="189"/>
-        <location filename="../qml/pages/LibraryPage.qml" line="330"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="141"/>
+        <source>Audiobooks can be played in a later version.</source>
+        <extracomment>Shown when an audiobook is opened before the player exists</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/LibraryPage.qml" line="199"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="341"/>
         <source>Book folder</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="197"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="207"/>
         <source>All folders</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="201"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="211"/>
         <source>Refresh</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="210"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="220"/>
         <source>Library</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="212"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="222"/>
         <source>Documents and memory cards</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="218"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="228"/>
         <source>Author, title or series</source>
         <extracomment>Search field of the library</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="230"/>
-        <source>Continue reading</source>
+        <location filename="../qml/pages/LibraryPage.qml" line="241"/>
+        <source>Continue</source>
+        <extracomment>Books and audiobooks opened last</extracomment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="247"/>
-        <location filename="../qml/pages/LibraryPage.qml" line="267"/>
-        <location filename="../qml/pages/LibraryPage.qml" line="294"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="258"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="278"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="305"/>
         <source>Unknown author</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="301"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="312"/>
         <source>Nothing found</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="303"/>
-        <source>Copy EPUB books to Documents or a memory card, or choose another book folder in the pulley menu</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="301"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="312"/>
         <source>No books</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="323"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="314"/>
+        <source>Copy EPUB books or audiobooks (MP3, M4B) to Documents or a memory card, or choose another book folder in the pulley menu</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/LibraryPage.qml" line="334"/>
         <source>Searching for books</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/LibraryPage.qml" line="318"/>
+        <location filename="../qml/pages/LibraryPage.qml" line="329"/>
         <source>Opening book</source>
         <translation type="unfinished"></translation>
     </message>

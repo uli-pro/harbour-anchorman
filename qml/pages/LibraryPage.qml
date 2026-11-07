@@ -134,6 +134,16 @@ Page {
         })
     }
 
+    // A book of the library view.
+    function openEntry(book) {
+        if (book.kind === "audiobook") {
+            //: Shown when an audiobook is opened before the player exists
+            app.showError(qsTr("Audiobooks can be played in a later version."))
+            return
+        }
+        openBook(book.path, false)
+    }
+
     // resuming: the app is starting; no message if the book cannot be opened.
     function openBook(path, resuming) {
         opening = true
@@ -227,7 +237,8 @@ Page {
 
             SectionHeader {
                 visible: page.filter === "" && page.recent.length > 0
-                text: qsTr("Continue reading")
+                //: Books and audiobooks opened last
+                text: qsTr("Continue")
             }
 
             Repeater {
@@ -237,7 +248,7 @@ Page {
                     width: listView.width
                     book: modelData
                     detail: modelData.author
-                    onClicked: page.openBook(modelData.path, false)
+                    onClicked: page.openEntry(modelData)
                 }
             }
         }
@@ -300,7 +311,7 @@ Page {
             enabled: page.loaded && !scanning && listView.count === 0
             text: page.filter !== "" ? qsTr("Nothing found") : qsTr("No books")
             hintText: page.filter !== "" ? ""
-                      : qsTr("Copy EPUB books to Documents or a memory card, or choose another book folder in the pulley menu")
+                      : qsTr("Copy EPUB books or audiobooks (MP3, M4B) to Documents or a memory card, or choose another book folder in the pulley menu")
         }
 
         VerticalScrollDecorator { }

@@ -1,7 +1,8 @@
 import QtQuick 2.0
 import Sailfish.Silica 1.0
 
-// The cover of a library book, taken out of the EPUB when first shown.
+// The cover of a library book, taken out of the EPUB or the audiobook when
+// first shown.
 Item {
     id: coverItem
 
@@ -15,7 +16,7 @@ Item {
         if (!book || !book.cover)
             return
         var key = book.key
-        py.call("bookfish.bridge.request_cover", [book.path, book.cover, key, app.coversFolder],
+        py.call("bookfish.bridge.request_cover", [book.coverPath, book.cover, key, app.coversFolder],
                 function (result) {
             // The delegate may have been destroyed or given another book.
             if (typeof coverItem === "undefined" || !coverItem || !coverItem.book
@@ -43,7 +44,8 @@ Item {
 
         Icon {
             anchors.centerIn: parent
-            source: "image://theme/icon-m-document"
+            source: book && book.kind === "audiobook" ? "image://theme/icon-m-headphone"
+                                                      : "image://theme/icon-m-document"
         }
     }
 

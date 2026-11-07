@@ -12,6 +12,14 @@ Readalouds can be created from an EPUB and an audiobook with
 
 ## Using
 
+- **Library:** EPUB books and audiobooks in Documents and on memory cards,
+  or in a folder chosen in the pull-down menu. An audiobook is an M4B file,
+  an MP3 file next to EPUB books (a folder of an author's books), or a
+  folder of MP3 files without EPUB books, each file a chapter in the order
+  of the file names. An audiobook named like an EPUB book next to it (the
+  folder `Book/` or the file `Book.mp3` next to `Book.epub`) is listed with
+  the title, author, series and cover of that book. Icons tell books,
+  audiobooks and readalouds apart.
 - **Turn pages** by swiping, or by tapping the left or right edge.
 - **Listen** by tapping a sentence: narration starts there. Tapping where
   there is no sentence starts at the top of the page. When a book is opened
