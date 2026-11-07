@@ -1,8 +1,9 @@
-# Anchorman
+# Bookfish
 
-Read and listen to EPUB 3 books with synchronized narration ("readalouds",
-EPUB Media Overlays) on Sailfish OS. Read where you want to read, and continue
-listening at exactly that sentence when you want to listen.
+Read e-books and listen to audiobooks and readalouds on Sailfish OS.
+Readalouds are EPUB 3 books with synchronized narration (EPUB Media Overlays):
+read where you want to read, and continue listening at exactly that sentence
+when you want to listen.
 
 Readalouds can be created from an EPUB and an audiobook with
 [Storyteller](https://storyteller-platform.dev/).
@@ -23,19 +24,19 @@ Readalouds can be created from an EPUB and an audiobook with
 Requires the [Sailfish SDK](https://docs.sailfishos.org/Tools/Sailfish_SDK/).
 
 ```
-mkdir -p ~/build/anchorman && cd ~/build/anchorman
+mkdir -p ~/build/bookfish && cd ~/build/bookfish
 sfdk config target=SailfishOS-5.1.0.11-aarch64
-sfdk build /path/to/harbour-anchorman
+sfdk build /path/to/harbour-bookfish
 ```
 
 ## Running tests
 
-The Python modules in `python/anchorman/` (except `bridge.py`) use only the
+The Python modules in `python/bookfish/` (except `bridge.py`) use only the
 standard library and are tested without the SDK. They must work with
 Python 3.8 (Sailfish OS up to 5.0) and 3.11 (from 5.1).
 
 ```
-cd /path/to/harbour-anchorman
+cd /path/to/harbour-bookfish
 PYTHONPATH=python python3 -B -m unittest discover -s tests -t .
 ```
 
@@ -56,4 +57,4 @@ All code is reviewed and understood by the human maintainer before it is merged.
 
 ## License
 
-GPL-3.0-or-later, see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE).

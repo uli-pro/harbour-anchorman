@@ -1,7 +1,7 @@
 import unittest
 from xml.etree import ElementTree
 
-from anchorman.search import BookIndex, chapter_of, fold, read_chapter
+from bookfish.search import BookIndex, chapter_of, fold, read_chapter
 
 from .helpers import MINI_DIR, TempDirTestCase, write_files
 

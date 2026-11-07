@@ -15,7 +15,7 @@ Item {
         if (!book || !book.cover)
             return
         var key = book.key
-        py.call("anchorman.bridge.request_cover", [book.path, book.cover, key, app.coversFolder],
+        py.call("bookfish.bridge.request_cover", [book.path, book.cover, key, app.coversFolder],
                 function (result) {
             // The delegate may have been destroyed or given another book.
             if (typeof coverItem === "undefined" || !coverItem || !coverItem.book

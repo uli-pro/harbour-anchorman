@@ -4,9 +4,9 @@ import struct
 import unittest
 from unittest import mock
 
-from anchorman import library
-from anchorman.errors import EpubError
-from anchorman.library import (BookFile, book_info, broken_info, card_folders, extract_cover,
+from bookfish import library
+from bookfish.errors import EpubError
+from bookfish.library import (BookFile, book_info, broken_info, card_folders, extract_cover,
                                list_books, load_cached, normal_identifier,
                                prune_covers, scan, without_replaced)
 
@@ -176,7 +176,7 @@ class ScanTest(TempDirTestCase):
         write_book(b, package=opf(title="B2"))
         os.utime(b, ns=(1, 1))
         os.remove(a)
-        with mock.patch("anchorman.library.book_info", wraps=library.book_info) as read:
+        with mock.patch("bookfish.library.book_info", wraps=library.book_info) as read:
             entries, changed = scan([self.books], self.cache)
         self.assertEqual([e["info"]["title"] for e in entries], ["B2"])
         self.assertTrue(changed)
@@ -198,12 +198,12 @@ class ScanTest(TempDirTestCase):
 
     def test_read_again_after_a_passing_error(self):
         path = self.book("a.epub")
-        with mock.patch("anchorman.library.book_info", side_effect=OSError("card gone")):
+        with mock.patch("bookfish.library.book_info", side_effect=OSError("card gone")):
             entry = scan([self.books], self.cache)[0][0]
         self.assertTrue(entry["info"]["broken"])
         entry = scan([self.books], self.cache)[0][0]
         self.assertFalse(entry["info"]["broken"])
-        with mock.patch("anchorman.library.book_info", side_effect=EpubError("bad_xml")):
+        with mock.patch("bookfish.library.book_info", side_effect=EpubError("bad_xml")):
             os.utime(path, ns=(2, 2))
             scan([self.books], self.cache)
         self.assertTrue(scan([self.books], self.cache)[0][0]["info"]["broken"])

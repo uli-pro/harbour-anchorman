@@ -1,7 +1,7 @@
 import unittest
 
-from anchorman.errors import EpubError
-from anchorman.overlay import Fragment, Overlay, parse_clock, read_overlay
+from bookfish.errors import EpubError
+from bookfish.overlay import Fragment, Overlay, parse_clock, read_overlay
 
 from .helpers import MINI_DIR, TempDirTestCase, write_files
 

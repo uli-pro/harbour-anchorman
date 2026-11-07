@@ -84,7 +84,7 @@ WebViewPage {
     }
 
     function start() {
-        py.call("anchorman.bridge.load_position", [app.positionsFile, book.key], function (pos) {
+        py.call("bookfish.bridge.load_position", [app.positionsFile, book.key], function (pos) {
             if (typeof page === "undefined" || !page)
                 return  // the page was closed meanwhile
             if (pos && pos.spine < book.spine.length) {
@@ -99,7 +99,7 @@ WebViewPage {
     // target: { id, fraction } or { end: true }, see framescript.js
     function loadChapter(index, target) {
         if (index === chapter && ready) {
-            flickable.webView.sendAsyncMessage("anchorman:goto", { target: target })
+            flickable.webView.sendAsyncMessage("bookfish:goto", { target: target })
             return
         }
         var item = book.spine[index]
@@ -114,7 +114,7 @@ WebViewPage {
             show(index, [], [], target)
             return
         }
-        py.call("anchorman.bridge.read_chapter", [book.root, item.path, item.overlay], function (result) {
+        py.call("bookfish.bridge.read_chapter", [book.root, item.path, item.overlay], function (result) {
             if (typeof page === "undefined" || !page || requested !== index)
                 return  // page closed, or another chapter was asked for meanwhile
             if (result.error) {
@@ -162,7 +162,7 @@ WebViewPage {
         // stays where the reader is.
         if (listening && player.playing && highlightId)
             target = { id: highlightId }
-        flickable.webView.sendAsyncMessage("anchorman:layout", {
+        flickable.webView.sendAsyncMessage("bookfish:layout", {
             serial: serial,
             ids: sentenceIds,
             target: target,
@@ -221,7 +221,7 @@ WebViewPage {
             if (!countingChars) {
                 countingChars = true
                 var paths = book.spine.map(function (item) { return item.path })
-                py.call("anchorman.bridge.chapter_lengths", [book.root, paths], function (lengths) {
+                py.call("bookfish.bridge.chapter_lengths", [book.root, paths], function (lengths) {
                     if (typeof page === "undefined" || !page)
                         return
                     chapterChars = lengths
@@ -259,7 +259,7 @@ WebViewPage {
 
     function handleMessage(message, data) {
         switch (message) {
-        case "anchorman:loaded":
+        case "bookfish:loaded":
             // A load that was replaced by another one may still report.
             if (loadingUrl === "" || !sameUrl(data.url, loadingUrl))
                 return
@@ -267,7 +267,7 @@ WebViewPage {
             layout(pendingTarget)
             pendingTarget = null
             break
-        case "anchorman:page":
+        case "bookfish:page":
             if (data.serial !== serial)
                 return
             if (data.textScale > 0)
@@ -284,13 +284,13 @@ WebViewPage {
             if (laidOut !== layoutSettings())
                 relayout()
             break
-        case "anchorman:painted":
+        case "bookfish:painted":
             if (data.serial !== serial || !covered)
                 return
             uncoverTimer.stop()
             paintedTimer.restart()
             break
-        case "anchorman:edge":
+        case "bookfish:edge":
             // Only the first of several quick turns past the end counts.
             if (data.serial !== serial || !ready)
                 return
@@ -298,7 +298,7 @@ WebViewPage {
             if (next >= 0)
                 loadChapter(next, data.delta > 0 ? { fraction: 0 } : { end: true })
             break
-        case "anchorman:highlighted":
+        case "bookfish:highlighted":
             if (data.serial !== serial || data.id !== player.currentId || !listening)
                 return
             splits = data.splits
@@ -309,11 +309,11 @@ WebViewPage {
                 }))
             }
             break
-        case "anchorman:found":
+        case "bookfish:found":
             if (data.serial === serial)
                 jumpId = data.id
             break
-        case "anchorman:hit":
+        case "bookfish:hit":
             if (data.serial !== serial)
                 return
             // A tap in the text ends looking through the hits; in a
@@ -326,7 +326,7 @@ WebViewPage {
             else if (!player.playing)
                 playFromPage()
             break
-        case "anchorman:start":
+        case "bookfish:start":
             if (data.serial !== serial)
                 return
             if (data.id) {
@@ -358,7 +358,7 @@ WebViewPage {
             return
         }
         var item = book.spine[index]
-        py.call("anchorman.bridge.read_chapter", [book.root, item.path, item.overlay], function (result) {
+        py.call("bookfish.bridge.read_chapter", [book.root, item.path, item.overlay], function (result) {
             if (typeof page === "undefined" || !page)
                 return
             if (result.error || result.sentences.length === 0)
@@ -405,7 +405,7 @@ WebViewPage {
         if (!ready || !hasAudio)
             return
         var prefer = jumpId || (player.active ? (listening ? player.currentId : "") : resumeId)
-        flickable.webView.sendAsyncMessage("anchorman:startSentence", { prefer: prefer })
+        flickable.webView.sendAsyncMessage("bookfish:startSentence", { prefer: prefer })
     }
 
     // Listening or turning pages: what was found or heard before is no
@@ -413,7 +413,7 @@ WebViewPage {
     function unmark() {
         jumpId = ""
         findShown = false
-        flickable.webView.sendAsyncMessage("anchorman:unmark", {})
+        flickable.webView.sendAsyncMessage("bookfish:unmark", {})
     }
 
     // To a place found by the search: reading there, not listening.
@@ -458,7 +458,7 @@ WebViewPage {
     }
 
     function hit(x, y) {
-        flickable.webView.sendAsyncMessage("anchorman:hitTest", { x: x, y: y })
+        flickable.webView.sendAsyncMessage("bookfish:hitTest", { x: x, y: y })
     }
 
     function togglePlay() {
@@ -508,7 +508,7 @@ WebViewPage {
         else if (index === chapter)
             // Also during a layout: the frame script takes messages in order,
             // and ignores this one if a new chapter is still loading.
-            flickable.webView.sendAsyncMessage("anchorman:highlight", { id: highlightId })
+            flickable.webView.sendAsyncMessage("bookfish:highlight", { id: highlightId })
         // Pages change rarely while listening; save now and then.
         if (Date.now() - savedAt > 20000)
             savePosition()
@@ -551,7 +551,7 @@ WebViewPage {
             barShown = false
         resumeId = ""
         jumpId = ""
-        flickable.webView.sendAsyncMessage("anchorman:turn", { delta: delta })
+        flickable.webView.sendAsyncMessage("bookfish:turn", { delta: delta })
     }
 
     function savePosition() {
@@ -562,7 +562,7 @@ WebViewPage {
         // the one heard before the book was closed, until pages are turned.
         var heardId = listening && (player.playing || barShown) ? player.currentId
                     : !player.active ? resumeId : ""
-        py.call("anchorman.bridge.save_position",
+        py.call("bookfish.bridge.save_position",
                 [app.positionsFile, book.key, { spine: chapter, id: heardId || firstId,
                                                 fraction: fraction, heard: heardId !== "" }],
                 function (result) {
@@ -607,7 +607,7 @@ WebViewPage {
             showHit(index)
         } else if (ready) {
             // Gecko drops the selection while another page is shown.
-            flickable.webView.sendAsyncMessage("anchorman:remark", {})
+            flickable.webView.sendAsyncMessage("bookfish:remark", {})
         }
     }
 
@@ -615,7 +615,7 @@ WebViewPage {
     Component.onDestruction: {
         if (app.reader === page)
             app.reader = null
-        py.call("anchorman.bridge.drop_search", [book.root])
+        py.call("bookfish.bridge.drop_search", [book.root])
     }
 
     Player {
@@ -627,7 +627,7 @@ WebViewPage {
         onFinished: page.handOver()
         onMarked: {
             if (n < page.splits.length)
-                flickable.webView.sendAsyncMessage("anchorman:show", { page: page.splits[n].page })
+                flickable.webView.sendAsyncMessage("bookfish:show", { page: page.splits[n].page })
         }
         onFailed: {
             page.stopPlayer()
@@ -743,14 +743,14 @@ WebViewPage {
 
         webView.onViewInitialized: {
             webView.loadFrameScript(Qt.resolvedUrl("../js/framescript.js"))
-            webView.addMessageListener("anchorman:loaded")
-            webView.addMessageListener("anchorman:page")
-            webView.addMessageListener("anchorman:edge")
-            webView.addMessageListener("anchorman:painted")
-            webView.addMessageListener("anchorman:highlighted")
-            webView.addMessageListener("anchorman:hit")
-            webView.addMessageListener("anchorman:start")
-            webView.addMessageListener("anchorman:found")
+            webView.addMessageListener("bookfish:loaded")
+            webView.addMessageListener("bookfish:page")
+            webView.addMessageListener("bookfish:edge")
+            webView.addMessageListener("bookfish:painted")
+            webView.addMessageListener("bookfish:highlighted")
+            webView.addMessageListener("bookfish:hit")
+            webView.addMessageListener("bookfish:start")
+            webView.addMessageListener("bookfish:found")
             page.start()
         }
 

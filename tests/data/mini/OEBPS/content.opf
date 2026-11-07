@@ -2,7 +2,7 @@
 <package xmlns="http://www.idpf.org/2007/opf" xmlns:dc="http://purl.org/dc/elements/1.1/" version="3.0" unique-identifier="id" xml:lang="en" prefix="storyteller: https://storyteller-platform.gitlab.io/storyteller/docs/vocabulary">
   <metadata>
     <dc:identifier id="id">urn:uuid:4f1c2a9e-6b0d-4d5e-9a57-3c8e2f7b1d60</dc:identifier>
-    <dc:identifier>urn:anchorman:test:mini</dc:identifier>
+    <dc:identifier>urn:bookfish:test:mini</dc:identifier>
     <dc:title id="title">The Happy Prince</dc:title>
     <meta refines="#title" property="title-type">main</meta>
     <dc:creator id="author">Wilde, Oscar</dc:creator>

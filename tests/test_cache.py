@@ -2,9 +2,9 @@ import os
 import time
 from unittest import mock
 
-from anchorman import cache
-from anchorman.errors import EpubError
-from anchorman.package import read_package
+from bookfish import cache
+from bookfish.errors import EpubError
+from bookfish.package import read_package
 
 from .helpers import TempDirTestCase, make_epub, mini_entries
 

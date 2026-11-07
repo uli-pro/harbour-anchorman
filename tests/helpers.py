@@ -52,5 +52,5 @@ class TempDirTestCase(unittest.TestCase):
     """Gives every test an empty directory self.tmp."""
 
     def setUp(self):
-        self.tmp = tempfile.mkdtemp(prefix="anchorman-test-")
+        self.tmp = tempfile.mkdtemp(prefix="bookfish-test-")
         self.addCleanup(shutil.rmtree, self.tmp)

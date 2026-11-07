@@ -1,7 +1,7 @@
 import os
 
-from anchorman.errors import EpubError
-from anchorman.xmlutil import parse_xml
+from bookfish.errors import EpubError
+from bookfish.xmlutil import parse_xml
 
 from .helpers import TempDirTestCase
 

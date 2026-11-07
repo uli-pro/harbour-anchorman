@@ -65,10 +65,10 @@ Page {
         }
         searching = true
         searchedQuery = text
-        py.call("anchorman.bridge.search", [root, text, here, serial])
+        py.call("bookfish.bridge.search", [root, text, here, serial])
     }
 
-    Component.onCompleted: py.call("anchorman.bridge.prepare_search", [root])
+    Component.onCompleted: py.call("bookfish.bridge.prepare_search", [root])
     onStatusChanged: {
         if (status === PageStatus.Active && query === "")
             listView.headerItem.field.forceActiveFocus()

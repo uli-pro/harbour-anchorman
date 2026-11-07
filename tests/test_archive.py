@@ -4,8 +4,8 @@ import struct
 import warnings
 import zipfile
 
-from anchorman.archive import extract
-from anchorman.errors import EpubError
+from bookfish.archive import extract
+from bookfish.errors import EpubError
 
 from .helpers import TempDirTestCase, make_epub, mini_entries
 

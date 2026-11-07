@@ -6,7 +6,7 @@ import time
 import unittest
 from unittest import mock
 
-from anchorman import bridge
+from bookfish import bridge
 
 from .helpers import TempDirTestCase, make_epub, mini_entries, write_files
 
